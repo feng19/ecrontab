@@ -2,12 +2,14 @@
 -include("ecrontab.hrl").
 
 -export([
-    next_time/3
+    next_time/2, next_time/3
 ]).
 
 %% ====================================================================
 %% next_time
 %% ====================================================================
+next_time(Spec, NowDatetime) ->
+	next_time(Spec, NowDatetime, ecrontab_time_util:datetime_to_timestamp(NowDatetime)).
 -spec next_time(Spec :: spec(), NowDatetime :: calendar:datetime(), NowTimestamp :: non_neg_integer()) ->
     {ok, Timestamp :: non_neg_integer()}|{false, over}.
 next_time(#spec{type = ?SPEC_TYPE_INTERVAL_YEAR, year = #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL,value = Interval}} = Spec,

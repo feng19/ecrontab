@@ -8,7 +8,9 @@ all_test_() ->
         any_test_list(),
         num_test_list(),
         list_test_list(),
-        interval_test_list()
+        interval_test_list(),
+        timestamp_test_list(),
+        fail_test_list()
     ].
 
 %% Year, Month, Day, Week, Hour, Minute, Second
@@ -55,7 +57,7 @@ num_test_list() ->
     [
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.year,
-                year = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 2016},
+                year = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 3016},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -63,7 +65,7 @@ num_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({2016,'*','*','*','*','*','*'})),
+            ecrontab_parse:parse_spec({3016,'*','*','*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.month,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -74,7 +76,7 @@ num_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({'*',12,'*','*','*','*','*'})),
+            ecrontab_parse:parse_spec({'*',[12],'*','*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.day,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -138,7 +140,7 @@ list_test_list() ->
 
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.year,
-                year = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [2016,2017,2018]},
+                year = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [3016,3017,3018]},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -146,10 +148,10 @@ list_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({<<"2016-2018">>,'*','*','*','*','*','*'})),
+            ecrontab_parse:parse_spec({<<"3016-3018">>,'*','*','*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.year,
-                year = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [2016,2018,2020,2022,2024]},
+                year = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [3016,3018,3020,3022,3024]},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -157,10 +159,10 @@ list_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({<<"2016-2024/2">>,'*','*','*','*','*','*'})),
+            ecrontab_parse:parse_spec({<<"3016-3024/2">>,'*','*','*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.year,
-                year = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [2016,2021,2026]},
+                year = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [3016,3021,3026]},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -168,10 +170,10 @@ list_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({<<"2016-2028/5">>,'*','*','*','*','*','*'})),
+            ecrontab_parse:parse_spec({<<"3016-3028/5">>,'*','*','*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.year,
-                year = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [2016,2017,2018]},
+                year = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [3016,3017,3018]},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -179,7 +181,7 @@ list_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({[2016,2017,2018,2010],'*','*','*','*','*','*'})),
+            ecrontab_parse:parse_spec({[3016,3017,3018,2010],'*','*','*','*','*','*'})),
 
         % month
 
@@ -193,18 +195,19 @@ list_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({'*',<<"6-11">>,'*','*','*','*','*'})),
+            ecrontab_parse:parse_spec({'*',<<"6-11/1">>,'*','*','*','*','*'})),
         ?_assertEqual(
-            {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.month,
+            {ok,#spec{type=?SPEC_TYPE_NORMAL,value=none,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [6,8,10]},
-                day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
+                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,
+                    16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 hour = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
-                second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
+                second = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 0}
             }},
-            ecrontab_parse:parse_spec({'*',<<"6-11/2">>,'*','*','*','*','*'})),
+            ecrontab_parse:parse_spec({<<"6-11/2">>,<<"*/1">>,'*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.month,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -256,57 +259,57 @@ list_test_list() ->
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.day,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
-                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [6,7,8,9,10,11]},
+                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [1,2,3,4,5,6,23,24,25,26,27,28,29,30,31]},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 hour = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({'*','*',<<"6-11">>,'*','*','*','*'})),
+            ecrontab_parse:parse_spec({'*','*',<<"23-6">>,'*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.day,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
-                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [6,8,10]},
+                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [2,4,6,11,13,15,17,19,21,23,25,27,29,31]},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 hour = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({'*','*',<<"6-11/2">>,'*','*','*','*'})),
+            ecrontab_parse:parse_spec({'*','*',<<"11-6/2">>,'*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.day,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
-                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [6,11]},
+                day = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 30},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 hour = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({'*','*',<<"6-11/5">>,'*','*','*','*'})),
+            ecrontab_parse:parse_spec({'*','*',<<"30-1/5">>,'*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.day,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
-                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31]},
+                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [1,2,3,6,7,8,9]},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 hour = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({'*','*',<<"*/2">>,'*','*','*','*'})),
+            ecrontab_parse:parse_spec({'*','*',<<"1,2,3,6-9">>,'*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.day,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
-                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31]},
+                day = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [4,30]},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 hour = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({'*','*',<<"/2">>,'*','*','*','*'})),
+            ecrontab_parse:parse_spec({'*','*',<<"30-4/5">>,'*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.day,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -396,22 +399,22 @@ list_test_list() ->
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
-                hour = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [6,7,8,9,10,11]},
+                hour = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [0,1,2,3,22,23]},
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({'*','*','*','*',<<"6-11">>,'*','*'})),
+            ecrontab_parse:parse_spec({'*','*','*','*',<<"22-3">>,'*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.hour,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
-                hour = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [6,8,10]},
+                hour = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [0,2,4,6]},
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({'*','*','*','*',<<"6-11/2">>,'*','*'})),
+            ecrontab_parse:parse_spec({'*','*','*','*',<<"-6/2">>,'*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_ONLY_ONE,value=#spec.hour,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -597,15 +600,27 @@ list_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = [6,7,8,10]}
             }},
-            ecrontab_parse:parse_spec({'*','*','*','*','*','*',[6,7,8,10]}))
+            ecrontab_parse:parse_spec({'*','*','*','*','*','*',[6,7,8,10]})),
+
+        % other
+        ?_assertEqual(
+            {ok,#spec{type=?SPEC_TYPE_NORMAL,value=none,
+                year = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 2016},
+                month = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
+                day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
+                week = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 3},
+                hour = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
+                minute = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 5},
+                second = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 0}
+            }},
+            ecrontab_parse:parse_spec({2016, 4, '*', 3, 4, 5, 0},[]))
     ].
 
 interval_test_list() ->
     [
-
         ?_assertEqual(
-            {ok,#spec{type=?SPEC_TYPE_INTERVAL_YEAR,value=2,
-                year = #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL, value = 2},
+            {ok,#spec{type=?SPEC_TYPE_INTERVAL_YEAR,value=1,
+                year = #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL, value = 1},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
@@ -613,7 +628,7 @@ interval_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}
             }},
-            ecrontab_parse:parse_spec({<<"*/2">>,'*','*','*','*','*','*'})),
+            ecrontab_parse:parse_spec({<<"*/1">>,'*','*','*','*','*','*'})),
         ?_assertEqual(
             {ok,#spec{type=?SPEC_TYPE_INTERVAL_YEAR,value=2,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL, value = 2},
@@ -627,44 +642,96 @@ interval_test_list() ->
             ecrontab_parse:parse_spec({<<"/2">>,'*','*','*','*','*','*'}))
     ].
 
-%%specific_dates_data() ->
-%%    [
-%%        {
-%%            ['*',               2,   29,     20,  0],
-%%            [2012,              3,   1,      0,   0],
-%%            [2016,              2,   29,     20,  0]
-%%        },
-%%        {
-%%            ['*',               1,   friday, 0,   0],
-%%            [2012,              1,   1,      1,   43],
-%%            [2012,              1,   6,      0,   0]
-%%        },
-%%        {
-%%            [2014,              9,   15,     '*', 20],
-%%            [2013,              11,  28,     12,  3],
-%%            [2014,              9,   15,     0,   20]
-%%        },
-%%        {
-%%            ['*',               2,   '*',    0,   0],
-%%            [2012,              2,   28,     0,   0],
-%%            [2012,              2,   29,     0,   0]
-%%        },
-%%        {
-%%            ['*',               '*', 30,     '*', '*'],
-%%            [2012,              4,   30,     0,   59],
-%%            [2012,              4,   30,     1,   0]
-%%        },
-%%        {
-%%            [['*', 2010, 2012], '*', 12,     '*', 10],
-%%            [2012,              1,   1,      15,  45],
-%%            [2012,              1,   12,     0,   10]
-%%        }
-%%    ].
+timestamp_test_list() ->
+    [
+        ?_assertEqual(
+            {ok,#spec{type=?SPEC_TYPE_TIMESTAMP,value=1459627500,
+                year = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 2016},
+                month = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
+                day = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 3},
+                week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
+                hour = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
+                minute = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 5},
+                second = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 0}
+            }},
+            ecrontab_parse:parse_spec({2016, 4, 3, '*', 4, 5, 0},[])),
+        ?_assertEqual(
+            {ok,#spec{type=?SPEC_TYPE_TIMESTAMP,value=1459627500,
+                year = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 2016},
+                month = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
+                day = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 3},
+                week = #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY},
+                hour = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
+                minute = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 5},
+                second = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 0}
+            }},
+            ecrontab_parse:parse_spec({2016, 4, 3, '*', 4, 5, 0},[{filter_over_time,{{{2016,4,3}, {4,4,0}},1459627440}}]))
+    ].
 
-%%parse_spec_fail_test() ->
-%%    {error, year}   = ecrontab_parse:parse_spec([foo, 2,  3,       4,  5]),
-%%    {error, month}  = ecrontab_parse:parse_spec([1,   13, 3,       4,  5]),
-%%    {error, day}    = ecrontab_parse:parse_spec([1,   2,  [blorg], 4,  5]),
-%%    {error, hour}   = ecrontab_parse:parse_spec([1,   2,  3,       24, 5]),
-%%    {error, minute} = ecrontab_parse:parse_spec([1,   2,  3,       4,  60]).
+fail_test_list() ->
+    [
+        ?_assertEqual({error, time_over},
+            ecrontab_parse:parse_spec([2015, '*', '*', '*', '*', '*', '*'])),
+        ?_assertEqual({error, time_over},
+            ecrontab_parse:parse_spec([2015, 2, 3, '*', 4, 5, 0])),
+        ?_assertEqual({error, time_over},
+            ecrontab_parse:parse_spec({3016, 4, 3, '*', 4, 5, 0},[{filter_over_time,{{{3016,5,3}, {4,4,0}},33019128240}}])),
+        ?_assertEqual({error, time_over},
+            ecrontab_parse:parse_spec([2016, 2, 3, '*', 4, 5, 0])),
+        ?_assertEqual({error, {year, invalid_value}},
+            ecrontab_parse:parse_spec([foo, 2, 3, '*', 4, 5, 0])),
+        ?_assertEqual({error, {year, list_interval}},
+            ecrontab_parse:parse_spec([[<<"*/1">>], 2, 3, '*', 4, 5, 0])),
+        ?_assertEqual({error, {year, invalid_step}},
+            ecrontab_parse:parse_spec([<<"/*">>, 2, 3, '*', 4, 5, 0])),
+        ?_assertEqual({error, {year, invalid_range}},
+            ecrontab_parse:parse_spec([<<"-2017/2">>, 2, 3, '*', 4, 5, 0])),
+        ?_assertEqual({error, {year, invalid_range}},
+            ecrontab_parse:parse_spec([<<"2017-/2">>, 2, 3, '*', 4, 5, 0])),
+        ?_assertEqual({error, {year, invalid_range}},
+            ecrontab_parse:parse_spec([<<"2017/2">>, 2, 3, '*', 4, 5, 0])),
+        ?_assertEqual({error, {year, year_range}},
+            ecrontab_parse:parse_spec([<<"2200-2017/2">>, 2, 3, '*', 4, 5, 0])),
 
+        ?_assertEqual({error, {month, invalid_range}},
+            ecrontab_parse:parse_spec([<<"-">>, 3, '*', 4, 5])),
+        ?_assertEqual({error, {month, neg_integer}},
+            ecrontab_parse:parse_spec([<<"*/-13">>, 3, '*', 4, 5])),
+        ?_assertEqual({error, {month, invalid_step}},
+            ecrontab_parse:parse_spec([<<"*/*">>, 3, '*', 4, 5])),
+        ?_assertEqual({error, {month, invalid_step}},
+            ecrontab_parse:parse_spec([<<"*/">>, 3, '*', 4, 5])),
+        ?_assertEqual({error, {month, any}},
+            ecrontab_parse:parse_spec([<<"1-*">>, 3, '*', 4, 5])),
+        ?_assertEqual({error, {month, same_range}},
+            ecrontab_parse:parse_spec([<<"1-1">>, 3, '*', 4, 5])),
+        ?_assertEqual({error, {month, any}},
+            ecrontab_parse:parse_spec([<<"*-">>, 3, '*', 4, 5])),
+        ?_assertEqual({error, {month, invalid_value}},
+            ecrontab_parse:parse_spec([<<"13/1">>, 3, '*', 4, 5])),
+        ?_assertEqual({error, {month, invalid_step}},
+            ecrontab_parse:parse_spec([<<"1-3/*">>, 3, '*', 4, 5])),
+        ?_assertEqual({error, {month, invalid_value}},
+            ecrontab_parse:parse_spec([13, 3, '*', 4, 5])),
+
+        ?_assertEqual({error, {day, invalid_value}},
+            ecrontab_parse:parse_spec([2, [blorg], '*', 4, 5])),
+        ?_assertEqual({error, {day, empty_list}},
+            ecrontab_parse:parse_spec([2, [[]], '*', 4, 5])),
+        ?_assertEqual({error, {day, list_any}},
+            ecrontab_parse:parse_spec([2, ['*'], '*', 4, 5])),
+
+        ?_assertEqual({error, {hour, invalid_value}},
+            ecrontab_parse:parse_spec({2, 3, '*', 24, 5})),
+
+        ?_assertEqual({error, {week, empty_binary}},
+            ecrontab_parse:parse_spec({2, 3, <<>>, 23, 5})),
+        ?_assertEqual({error, {week, empty_list}},
+            ecrontab_parse:parse_spec({2, 3, [], 23, 5})),
+
+        ?_assertEqual({error, {minute, invalid_value}},
+            ecrontab_parse:parse_spec(2, 3, '*', 4, 60)),
+
+        ?_assertEqual({error, {second, invalid_value}},
+            ecrontab_parse:parse_spec([2016, 4, 3, '*', 4, 0, 60]))
+    ].

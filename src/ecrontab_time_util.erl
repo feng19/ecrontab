@@ -79,15 +79,13 @@ get_type_range(second) ->
 
 validate_year(Y) when is_integer(Y) andalso Y >= 0 ->
     {ok, Y};
-validate_year(Y) when is_binary(Y) ->
-    validate_year(binary_to_integer(Y));
+validate_year(Binary) when is_binary(Binary) ->
+    validate_year(binary_to_integer(Binary));
 validate_year(_) ->
-    {error, year}.
+    {error, invalid_value}.
 
 validate_month(M) when is_integer(M) andalso M >= 1 andalso M =<12 ->
     {ok, M};
-validate_month(Atom) when is_atom(Atom) ->
-    validate_month(atom_to_binary(Atom,utf8));
 validate_month(List) when is_list(List) ->
     validate_month(list_to_binary(List));
 
@@ -141,18 +139,19 @@ validate_month(<<"oct">>) ->    {ok,10};
 validate_month(<<"nov">>) ->    {ok,11};
 validate_month(<<"dec">>) ->    {ok,12};
 
-validate_month(M) when is_binary(M) ->
-    validate_month(binary_to_integer(M));
+validate_month(Binary) when is_binary(Binary) ->
+    validate_month(binary_to_integer(Binary));
+validate_month(Atom) when is_atom(Atom) ->
+    List = atom_to_list(Atom),
+    validate_month(list_to_binary(List));
 validate_month(_) ->
-    {error, month}.
+    {error, invalid_value}.
 
 
 validate_week(0) ->
     {ok, 7};
 validate_week(W) when is_integer(W) andalso W >= 1 andalso W =< 7 ->
     {ok, W};
-validate_week(Atom) when is_atom(Atom) ->
-    validate_week(atom_to_binary(Atom,utf8));
 validate_week(List) when is_list(List) ->
     validate_week(list_to_binary(List));
 
@@ -189,38 +188,41 @@ validate_week(<<"sunday">>) ->      {ok, 7};
 
 validate_week(<<"0">>) ->
     {ok, 7};
-validate_week(W) when is_binary(W) ->
-    validate_week(binary_to_integer(W));
+validate_week(Binary) when is_binary(Binary) ->
+    validate_week(binary_to_integer(Binary));
+validate_week(Atom) when is_atom(Atom) ->
+    List = atom_to_list(Atom),
+    validate_week(list_to_binary(List));
 validate_week(_) ->
-    {error, week}.
+    {error, invalid_value}.
 
 validate_day(D) when is_integer(D) andalso D >= 1 andalso D =< 31 ->
     {ok, D};
-validate_day(D) when is_binary(D) ->
-    validate_day(binary_to_integer(D));
+validate_day(Binary) when is_binary(Binary) ->
+    validate_day(binary_to_integer(Binary));
 validate_day(_) ->
-    {error, day}.
+    {error, invalid_value}.
 
 validate_hour(H) when is_integer(H) andalso H >= 0 andalso H =< 23 ->
     {ok, H};
-validate_hour(H) when is_binary(H) ->
-    validate_hour(binary_to_integer(H));
+validate_hour(Binary) when is_binary(Binary) ->
+    validate_hour(binary_to_integer(Binary));
 validate_hour(_) ->
-    {error, hour}.
+    {error, invalid_value}.
 
 validate_minute(M) when is_integer(M) andalso M >= 0 andalso M =< 59 ->
     {ok, M};
-validate_minute(M) when is_binary(M) ->
-    validate_minute(binary_to_integer(M));
+validate_minute(Binary) when is_binary(Binary) ->
+    validate_minute(binary_to_integer(Binary));
 validate_minute(_) ->
-    {error, minute}.
+    {error, invalid_value}.
 
 validate_second(S) when is_integer(S) andalso S >= 0 andalso S =< 59 ->
     {ok, S};
-validate_second(S) when is_binary(S) ->
-    validate_second(binary_to_integer(S));
+validate_second(Binary) when is_binary(Binary) ->
+    validate_second(binary_to_integer(Binary));
 validate_second(_) ->
-    {error, second}.
+    {error, invalid_value}.
 
 %% ====================================================================
 

@@ -1,7 +1,8 @@
 -module(ecrontab_parse).
 -include("ecrontab.hrl").
 -export([
-    parse_spec/1, parse_spec/5, parse_spec/7,
+    parse_spec/1, parse_spec/2,
+    parse_spec/5, parse_spec/7, parse_spec/8,
     get_spec_type/1
 ]).
 
@@ -11,32 +12,46 @@
     type_list_count = 0
 }).
 
+-define(DEFAULT_OPTIONS, [{filter_over_time,{now,now}}]).
+
 %% ====================================================================
 %% parse_spec
 %% ====================================================================
-parse_spec([Month, Day, Week, Hour, Minute]) ->
-    parse_spec('*', Month, Day, Week, Hour, Minute, 0);
-parse_spec({Month, Day, Week, Hour, Minute}) ->
-    parse_spec('*', Month, Day, Week, Hour, Minute, 0);
-parse_spec([Year, Month, Day, Week, Hour, Minute, Second]) ->
-    parse_spec(Year, Month, Day, Week, Hour, Minute, Second);
-parse_spec({Year, Month, Day, Week, Hour, Minute, Second}) ->
-    parse_spec(Year, Month, Day, Week, Hour, Minute, Second).
+parse_spec(Spec) ->
+    parse_spec(Spec, ?DEFAULT_OPTIONS).
+parse_spec([Month, Day, Week, Hour, Minute], Options) ->
+    parse_spec('*', Month, Day, Week, Hour, Minute, 0, Options);
+parse_spec({Month, Day, Week, Hour, Minute}, Options) ->
+    parse_spec('*', Month, Day, Week, Hour, Minute, 0, Options);
+parse_spec([Year, Month, Day, Week, Hour, Minute, Second], Options) ->
+    parse_spec(Year, Month, Day, Week, Hour, Minute, Second, Options);
+parse_spec({Year, Month, Day, Week, Hour, Minute, Second}, Options) ->
+    parse_spec(Year, Month, Day, Week, Hour, Minute, Second, Options).
 
 parse_spec(Month, Day, Week, Hour, Minute) ->
     parse_spec('*', Month, Day, Week, Hour, Minute, 0).
+parse_spec(Year, Month, Day, Week, Hour, Minute, Second) ->
+    parse_spec(Year, Month, Day, Week, Hour, Minute, Second, ?DEFAULT_OPTIONS).
+
 -spec parse_spec(Year :: any(), Month :: any(), Day :: any(), Week :: any(),
     Hour :: any(), Minute :: any(), Second :: any()) -> {ok, spec()}|{error, any()}.
-parse_spec(Year, Month, Day, Week, Hour, Minute, Second) ->
+parse_spec(Year, Month, Day, Week, Hour, Minute, Second, Options) ->
     List = [{year, Year}, {month, Month}, {day, Day}, {week, Week},
             {hour, Hour}, {minute, Minute},{second, Second}],
     case validate_spec(List) of
         {ok, NewList} ->
-            {SpecType, SpecTypeValue} = get_spec_type(NewList),
-            Spec0 = list_to_tuple([spec,SpecType,SpecTypeValue|NewList]),
-            NowDatetime = erlang:localtime(),
-            NowTimestamp = ecrontab_time_util:datetime_to_timestamp(NowDatetime),
-            filter_over_time(Spec0, NowDatetime, NowTimestamp);
+            Spec0 = list_to_tuple([spec,undefined,undefined|NewList]),
+            Spec = get_spec_type(Spec0),
+            case proplists:get_value(filter_over_time, Options) of
+                undefined ->
+                    {ok, Spec};
+                {now,now} ->
+                    NowDatetime = erlang:localtime(),
+                    NowTimestamp = ecrontab_time_util:datetime_to_timestamp(NowDatetime),
+                    filter_over_time(Spec, NowDatetime, NowTimestamp);
+                {NowDatetime, NowTimestamp} ->
+                    filter_over_time(Spec, NowDatetime, NowTimestamp)
+            end;
         Err ->
             Err
     end.
@@ -56,6 +71,8 @@ validate_spec([], Acc) ->
 %% ====================================================================
 %% parse_spec_field
 %% ====================================================================
+parse_spec_field(<<>>, _) ->
+    {error, empty_binary};
 parse_spec_field('*', _Type) ->
     {ok,#spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}};
 parse_spec_field(<<"*">>, _Type) ->
@@ -67,13 +84,19 @@ parse_spec_field(List, Type) when is_list(List) ->
 parse_spec_field(Value, Type) when is_binary(Value) ->
     case binary:split(Value, <<",">>, [global]) of
         [Single] ->
-            parse_interval(Single, Type);
-        [] ->
-            {error, binary_field};
+            case binary:match(Single,[<<"/">>,<<"-">>]) of
+                nomatch ->
+                    parse_spec_field_other(Single, Type);
+                _ ->
+                    parse_interval(Single, Type)
+            end;
         List ->
             parse_list(List, Type)
     end;
 parse_spec_field(Value0, Type) ->
+    parse_spec_field_other(Value0, Type).
+
+parse_spec_field_other(Value0, Type) ->
     case validate_value(Type, Value0) of
         {ok,Value} ->
             {ok, #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = Value}};
@@ -81,7 +104,9 @@ parse_spec_field(Value0, Type) ->
             Err
     end.
 
+%% ====================================================================
 %% parse_list
+%% ====================================================================
 parse_list([], _Type) ->
     {error, empty_list};
 parse_list(List, Type) ->
@@ -89,53 +114,27 @@ parse_list(List, Type) ->
 
 parse_list([H|T], Type, Acc) ->
     case parse_spec_field(H, Type) of
-        {ok,#spec_field{type = ?SPEC_FIELD_ANY}} ->
+        {ok,#spec_field{type = ?SPEC_FIELD_TYPE_ANY}} ->
             {error, list_any};
+        {ok,#spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL}} ->
+            {error, list_interval};
         {ok,Value} ->
             parse_list(T, Type, [Value|Acc]);
         Err ->
             Err
     end;
 parse_list([], Type, Acc) ->
-    case filter_list_overlap(Acc) of
-        {ok, List} ->
-            list_single(Type, List);
-        Err ->
-            Err
-    end.
+    {ok, List} = filter_list_overlap(Acc),
+    list_single(Type, List).
 
 list_single(_, [Value]) ->
     {ok, #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = Value}};
-list_single(year, List) ->
-    {ok, #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = List}};
-list_single(month, [1,2,3,4,5,6,7,8,9,10,11,12]) ->
-    {ok, #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}};
-list_single(day, [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]) ->
-    {ok, #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}};
-list_single(week, [1,2,3,4,5,6,7]) ->
-    {ok, #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}};
-list_single(hour, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
-    20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,
-    40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59]) ->
-    {ok, #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}};
-list_single(minute, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
-    20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,
-    40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59]) ->
-    {ok, #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}};
-list_single(second, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
-    20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,
-    40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59]) ->
-    {ok, #spec_field{type = ?SPEC_FIELD_TYPE_ANY, value = ?SPEC_FIELD_ANY}};
 list_single(_, List) ->
     {ok, #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = List}}.
 
 filter_list_overlap(List) ->
-    case filter_list_overlap_do(List,[]) of
-        {ok, NewList} ->
-            {ok, lists:usort(NewList)};
-        Err ->
-            Err
-    end.
+    {ok, NewList} = filter_list_overlap_do(List,[]),
+    {ok, lists:usort(NewList)}.
 
 filter_list_overlap_do([],ListAcc) ->
     {ok, ListAcc};
@@ -145,15 +144,83 @@ filter_list_overlap_do([SpecField|List],Acc) ->
             NewAcc = [SpecField#spec_field.value|Acc],
             filter_list_overlap_do(List,NewAcc);
         ?SPEC_FIELD_TYPE_LIST ->
-            case filter_list_overlap(SpecField#spec_field.value) of
-                {ok, NewList} ->
-                    NewAcc = NewList++Acc,
-                    filter_list_overlap_do(List,NewAcc);
+            NewAcc = SpecField#spec_field.value ++ Acc,
+            filter_list_overlap_do(List,NewAcc)
+    end.
+
+%% ====================================================================
+%% parse interval and range binary:
+%%  <<"2-5/2">>, <<"2-5">>, <<"23-7/2">>, <<"*/2">>, <<"/2">>
+%% ====================================================================
+parse_interval(Bin, Type) ->
+    case binary:split(Bin, <<"/">>, [global]) of
+        [<<>>, IntervalBin] ->
+            parse_interval_any(Type, IntervalBin);
+        [<<"*">>, <<"1">>] ->
+            parse_interval_one(Type);
+        [<<"*">>, IntervalBin] ->
+            parse_interval_any(Type, IntervalBin);
+        [RangeBin, <<"1">>] ->
+            parse_interval_do(Type, RangeBin, 1);
+        [RangeBin, IntervalBin] ->
+            case check_interval_bin(IntervalBin) of
+                {ok, Interval} ->
+                    parse_interval_do(Type, RangeBin, Interval);
                 Err ->
                     Err
             end;
-        _ ->
-            {error, list_other}
+        [RangeBin] ->
+            parse_interval_do(Type, RangeBin, 1)
+    end.
+parse_interval_do(Type, RangeBin, Step) ->
+    case binary:split(RangeBin, <<"-">>) of
+        [<<>>, <<>>] ->
+            {error, invalid_range};
+        [<<>>, Last] ->
+            case ecrontab_time_util:get_type_range(Type) of
+                {ok, {Min,_}} ->
+                    parse_interval_do(Type, Min, Last, Step);
+                _ ->
+                    {error, invalid_range}
+            end;
+        [First,<<>>] ->
+            case ecrontab_time_util:get_type_range(Type) of
+                {ok, {_,Max}} ->
+                    parse_interval_do(Type, First, Max, Step);
+                _ ->
+                    {error, invalid_range}
+            end;
+        [Value, Value] -> % First==Last
+            {error, same_range};
+        [First, Last] ->
+            parse_interval_do(Type, First, Last, Step);
+        [First] ->
+            case ecrontab_time_util:get_type_range(Type) of
+                {ok, {_,Max}} ->
+                    parse_interval_do(Type, First, Max, Step);
+                _ ->
+                    {error, invalid_range}
+            end
+    end.
+parse_interval_do(Type, First0, Last0, Step) ->
+    case validate_value(Type, First0) of
+        {ok, First} ->
+            case validate_value(Type, Last0) of
+                {ok, Last} when First=<Last ->
+                    List = get_list_by_range(First, Last, Step),
+                    list_single(Type, lists:usort(List));
+                {ok, Last} -> % First > Last
+                    case get_list_by_range(Type, First, Last, Step) of
+                        {ok, List} ->
+                            list_single(Type, lists:usort(List));
+                        Err ->
+                            Err
+                    end;
+                Err ->
+                    Err
+            end;
+        Err ->
+            Err
     end.
 
 parse_interval_one(Type) ->
@@ -180,11 +247,15 @@ parse_interval_any(Type, IntervalBin) ->
         {ok, Interval} ->
             {ok, {Min,Max}} = ecrontab_time_util:get_type_range(Type),
             List = get_list_by_range(Min, Max, Interval),
-            list_single(Type, List);
+            list_single(Type, lists:usort(List));
         Err ->
             Err
     end.
 
+check_interval_bin(<<>>) ->
+    {error, invalid_step};
+check_interval_bin(<<"*">>) ->
+    {error, invalid_step};
 check_interval_bin(Bin) ->
     Int = binary_to_integer(Bin),
     if
@@ -192,56 +263,6 @@ check_interval_bin(Bin) ->
             {error, neg_integer};
         true ->
             {ok, Int}
-    end.
-
-%% parse the range binary: 
-%%     <<"2-5/2">>, <<"2-5">>, <<"23-7/2">>, <<"*/2">>, <<"/2">>
-parse_interval(Bin, Type) ->
-    case binary:split(Bin, <<"/">>, [global]) of
-        [<<>>, IntervalBin] ->
-            parse_interval_any(Type, IntervalBin);
-        [RangeBin] ->
-            parse_interval_do(Type, RangeBin, 1);
-        [<<"*">>, <<"1">>] ->
-            parse_interval_one(Type);
-        [<<"*">>, IntervalBin] ->
-            parse_interval_any(Type, IntervalBin);
-        [RangeBin, <<"1">>] ->
-            parse_interval_do(Type, RangeBin, 1);
-        [RangeBin, IntervalBin] ->
-            case check_interval_bin(IntervalBin) of
-                {ok, Interval} ->
-                    parse_interval_do(Type, RangeBin, Interval);
-                Err ->
-                    Err
-            end;
-        [] ->
-            {error, range}
-    end.
-parse_interval_do(Type, RangeBin, Step) ->
-    case binary:split(RangeBin, <<"-">>) of
-        [Value0, Value0] -> % First==Last
-            {error, error_interval};
-        [First0, Last0] ->
-            parse_interval_do(Type, First0, Last0, Step);
-        _ ->
-            {error, interval}
-    end.
-parse_interval_do(Type, First0, Last0, Step) ->
-    case validate_value(Type, First0) of
-        {ok, First} ->
-            case validate_value(Type, Last0) of
-                {ok, Last} when First=<Last ->
-                    List = get_list_by_range(First, Last, Step),
-                    list_single(Type, List);
-                {ok, Last} -> % First > Last
-                    List = get_list_by_range(Type, First, Last, Step),
-                    list_single(Type, List);
-                Err ->
-                    Err
-            end;
-        Err ->
-            Err
     end.
 
 %% First =< Last
@@ -258,7 +279,7 @@ get_list_by_range(First, Last, Step) ->
 get_list_by_range(Type, First, Last, Step) ->
     case ecrontab_time_util:get_type_range(Type) of
         {ok, {Min,Max}} ->
-            get_list_by_range_do(Min, Max, First, Last, Step);
+            {ok, get_list_by_range_do(Min, Max, First, Last, Step)};
         Err ->
             Err
     end.
@@ -307,9 +328,7 @@ validate_value(week, Value) ->
 validate_value(minute, Value) ->
     ecrontab_time_util:validate_minute(Value);
 validate_value(second, Value) ->
-    ecrontab_time_util:validate_second(Value);
-validate_value(_Type, _Value) ->
-    {error, type}.
+    ecrontab_time_util:validate_second(Value).
 
 
 filter_over_time(Spec, NowDatetime, NowTimestamp) ->
@@ -317,7 +336,7 @@ filter_over_time(Spec, NowDatetime, NowTimestamp) ->
         ?SPEC_TYPE_TIMESTAMP ->
             if
                 NowTimestamp > Spec#spec.value ->
-                    {error, over};
+                    {error, time_over};
                 true ->
                     {ok, Spec}
             end;
@@ -336,14 +355,15 @@ filter_over_time_year(Spec, NowDatetime) ->
         ?SPEC_FIELD_TYPE_NUM ->
             if
                 NowYear > SpecField#spec_field.value ->
-                    {error, over};
+                    {error, time_over};
                 true ->
                     {ok, Spec}
             end;
         ?SPEC_FIELD_TYPE_LIST ->
             NewValue = filter_less_then(NowYear,SpecField#spec_field.value),
             {ok, NewSpecField} = list_single(year,NewValue),
-            {ok, Spec#spec{year = NewSpecField}};
+            NewSpec = get_spec_type(Spec#spec{year = NewSpecField}),
+            {ok, NewSpec};
         _ ->
             {ok, Spec}
     end.
@@ -354,13 +374,15 @@ filter_less_then(_,Ordsets) ->
     Ordsets.
 
 get_spec_type(#spec{year = Year, month = Month, day = Day, week = Week,
-                    hour = Hour, minute = Minute, second = Second}) ->
-    get_spec_type([Year, Month, Day, Week, Hour, Minute, Second]);
-get_spec_type(List) ->
-    case hd(List) of
+                    hour = Hour, minute = Minute, second = Second} = Spec) ->
+    {SpecType, SpecTypeValue} = get_spec_type(Year, Month, Day, Week, Hour, Minute, Second),
+    Spec#spec{type = SpecType, value = SpecTypeValue}.
+get_spec_type(Year, Month, Day, Week, Hour, Minute, Second) ->
+    case Year of
         #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL, value = Interval} ->
             {?SPEC_TYPE_INTERVAL_YEAR, Interval};
         _ ->
+            List = [Year, Month, Day, Week, Hour, Minute, Second],
             case stat_spec_type(List) of
                 #stat_spec_type{type_any_count = 7} ->
                     {?SPEC_TYPE_EVERY_SECOND, none};

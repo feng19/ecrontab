@@ -14,6 +14,7 @@
         }).
 -record(task, {spec, mfa, next, options}). % todo no next
 
+-define(ONE_PROCESS_MAX_TASKS, 10000). % 10000
 -define(CHECK_TASK_INTERVAL, 1000). % 1s
 -define(START_TASK_TIMER, erlang:start_timer(?CHECK_TASK_INTERVAL, self(), check_task)).
 

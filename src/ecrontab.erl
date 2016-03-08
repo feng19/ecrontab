@@ -40,7 +40,7 @@ loop_next_time(Spec,Count) ->
     NowTimestamp = 1457359359,
     loop_next_time(Spec,NowDatetime,NowTimestamp,Count).
 loop_next_time(Spec0,NowDatetime,NowTimestamp,Count) ->
-    {ok, Spec} = ecrontab_parse:parse_spec(Spec0),
+    {ok, Spec} = ecrontab_parse:parse_spec(Spec0, []),
     {Time,_} = timer:tc(?MODULE,loop_next_time_do,[Spec,NowDatetime,NowTimestamp,Count]),
     Ptime = Time/Count,
     Times = 1000000/Ptime,

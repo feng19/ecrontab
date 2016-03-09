@@ -9,15 +9,11 @@
 
 -record(state, {
             tasks = gb_trees:empty() :: gb_trees:tree(), %% name -> task % todo ets
-            queue = gb_trees:empty() :: gb_trees:tree(), %% time -> name
-            tref :: reference()       %% the check cron task timer
+            queue = gb_trees:empty() :: gb_trees:tree() %% time -> name
         }).
 -record(task, {spec, mfa, next, options}). % todo no next
 
 -define(ONE_PROCESS_MAX_TASKS, 10000). % 10000
--define(CHECK_TASK_INTERVAL, 1000). % 1s
--define(START_TASK_TIMER, erlang:start_timer(?CHECK_TASK_INTERVAL, self(), check_task)).
-
 
 start_link() ->
     start_link({local, ?MODULE}, []).
@@ -29,6 +25,7 @@ start_link(Name,Args) when is_tuple(Name) ->
 start_link(Name,Args) when is_atom(Name) ->
     gen_server:start_link({local, Name}, ?MODULE, Args, []).
 
+%% todo server manager
 add(Server, Name, Spec, MFA, Options) ->
     gen_server:call(Server, {add, {Name, Spec, MFA, Options}}).
 
@@ -41,8 +38,7 @@ remove(Server, Name, Options) ->
 
 init(_Args) ->
     process_flag(trap_exit, true),
-    Tref = ?CHECK_TASK_INTERVAL,
-    {ok, #state{tref=Tref}}.
+    {ok, #state{}}.
 
 handle_call({add, {Name, Spec, MFA, Options}}, _From, State) ->
     case do_add(Name, Spec, MFA, Options, State#state.tasks, State#state.queue) of
@@ -64,14 +60,14 @@ handle_call(_Msg, _From, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({timeout, _Ref, check_task}, State) ->
-    {Tasks, Queue} = do_tick(State#state.tasks, State#state.queue),
-    {noreply, State#state{tasks=Tasks,queue=Queue,tref=?START_TASK_TIMER}};
+handle_info({check_task,Timestamp}, State) ->
+    {Tasks, Queue} = do_tick(State#state.tasks, State#state.queue, Timestamp),
+    {noreply, State#state{tasks=Tasks,queue=Queue}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
-terminate(_Reason, State) ->
-    timer:cancel(State#state.tref),
+terminate(_Reason, _State) ->
+    % todo cancel tick
     ok.
 
 code_change(_Old, State, _Extra) ->
@@ -105,19 +101,18 @@ do_remove(Name, _Options, Tasks, Queue) ->
             {error, no_such_task}
     end.
 
-do_tick(Tasks0, Queue0) ->
+do_tick(Tasks0, Queue0, Timestamp) ->
     case gb_trees:size(Queue0) of
         0 ->
             {Tasks0, Queue0};
         _ ->
-            NowDatetime = erlang:localtime(),
-            NowTimestamp = ecrontab_time_util:datetime_to_timestamp(NowDatetime),
+            Datetime = ecrontab_time_util:timestamp_to_datetime(Timestamp),
             case gb_trees:take_smallest(Queue0) of
-                {{Time, Name}, Name, Queue1} when Time =< NowTimestamp ->
+                {{Time, Name}, Name, Queue1} when Time =< Timestamp ->
                     Task = gb_trees:get(Name, Tasks0),
                     do_spawn_task(Task#task.mfa),
-                    {Tasks, Queue} = try_schedule(Name, Task, Tasks0, Queue1, NowDatetime, NowTimestamp),
-                    do_tick(Tasks, Queue);
+                    {Tasks, Queue} = try_schedule(Name, Task, Tasks0, Queue1, Datetime, Timestamp),
+                    do_tick(Tasks, Queue, Timestamp);
                 {{_Time, _Name}, _Name, _Queue} ->
                     {Tasks0, Queue0}
             end

@@ -1,5 +1,5 @@
 -module(ecrontab_parse).
--include("ecrontab.hrl").
+-include("ecrontab_parse.hrl").
 -export([
     parse_spec/1, parse_spec/2,
     parse_spec/5, parse_spec/7, parse_spec/8,
@@ -12,7 +12,7 @@
     type_list_count = 0
 }).
 
--define(DEFAULT_OPTIONS, [{filter_over_time,{now,now}}]).
+-define(DEFAULT_OPTIONS, [{filter_over_time,now}]).
 
 %% ====================================================================
 %% parse_spec
@@ -45,12 +45,11 @@ parse_spec(Year, Month, Day, Week, Hour, Minute, Second, Options) ->
             case proplists:get_value(filter_over_time, Options) of
                 undefined ->
                     {ok, Spec};
-                {now,now} ->
+                now ->
                     NowDatetime = erlang:localtime(),
-                    NowTimestamp = ecrontab_time_util:datetime_to_timestamp(NowDatetime),
-                    filter_over_time(Spec, NowDatetime, NowTimestamp);
-                {NowDatetime, NowTimestamp} ->
-                    filter_over_time(Spec, NowDatetime, NowTimestamp)
+                    filter_over_time(Spec, NowDatetime);
+                NowDatetime ->
+                    filter_over_time(Spec, NowDatetime)
             end;
         Err ->
             Err
@@ -331,11 +330,12 @@ validate_value(second, Value) ->
     ecrontab_time_util:validate_second(Value).
 
 
-filter_over_time(Spec, NowDatetime, NowTimestamp) ->
+filter_over_time(Spec, NowDatetime) ->
     case Spec#spec.type of
-        ?SPEC_TYPE_TIMESTAMP ->
+        ?SPEC_TYPE_SECONDS ->
+            NowSeconds = calendar:datetime_to_gregorian_seconds(NowDatetime),
             if
-                NowTimestamp > Spec#spec.value ->
+                NowSeconds > Spec#spec.value ->
                     {error, time_over};
                 true ->
                     {ok, Spec}
@@ -445,7 +445,7 @@ is_type_timestamp([#spec_field{value=Year}, #spec_field{value=Month},
              #spec_field{value=Day}, #spec_field{type=?SPEC_FIELD_TYPE_ANY}, 
              #spec_field{value=Hour}, #spec_field{value=Minute},
              #spec_field{value=Second}]) ->
-    Timestamp = ecrontab_time_util:datetime_to_timestamp({{Year, Month, Day}, {Hour, Minute, Second}}),
-    {?SPEC_TYPE_TIMESTAMP, Timestamp};
+    Seconds = calendar:datetime_to_gregorian_seconds({{Year, Month, Day}, {Hour, Minute, Second}}),
+    {?SPEC_TYPE_SECONDS, Seconds};
 is_type_timestamp(_) ->
     {?SPEC_TYPE_NORMAL, none}.

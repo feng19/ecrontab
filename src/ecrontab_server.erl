@@ -3,71 +3,41 @@
 -include("ecrontab.hrl").
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([
-    start_link/0, start_link/1, start_link/2,
-    add/5, remove/3
+    start_link/0
 ]).
 
--record(state, {
-            tasks = gb_trees:empty() :: gb_trees:tree(), %% name -> task % todo ets
-            queue = gb_trees:empty() :: gb_trees:tree() %% time -> name
-        }).
--record(task, {spec, mfa, next, options}). % todo no next
+-record(state, {tid}).
 
--define(ONE_PROCESS_MAX_TASKS, 10000). % 10000
+%%%===================================================================
+%%% API
+%%%===================================================================
 
 start_link() ->
-    start_link({local, ?MODULE}, []).
-start_link(Name) ->
-    start_link(Name, []).
+    gen_server:start_link(?MODULE, [], []).
 
-start_link(Name,Args) when is_tuple(Name) ->
-    gen_server:start_link(Name, ?MODULE, Args, []);
-start_link(Name,Args) when is_atom(Name) ->
-    gen_server:start_link({local, Name}, ?MODULE, Args, []).
+%%%===================================================================
+%%% gen_server callbacks
+%%%===================================================================
 
-%% todo server manager
-add(Server, Name, Spec, MFA, Options) ->
-    gen_server:call(Server, {add, {Name, Spec, MFA, Options}}).
+init([]) ->
+    pg2:join(?GROUP_NAME, self()),
+    Tid = ecrontab_task_manager:reg_server(self()),
+    {ok, #state{tid = Tid}}.
 
-remove(Server, Name, Options) ->
-    gen_server:call(Server, {remove, {Name, Options}}).
-
-%% ====================================================================
-%% callback API
-%% ====================================================================
-
-init(_Args) ->
-    process_flag(trap_exit, true),
-    {ok, #state{}}.
-
-handle_call({add, {Name, Spec, MFA, Options}}, _From, State) ->
-    case do_add(Name, Spec, MFA, Options, State#state.tasks, State#state.queue) of
-        {ok, {Tasks, Queue}} ->
-            {reply, ok, State#state{tasks=Tasks,queue=Queue}};
-        Reply ->
-            {reply, Reply, State}
-    end;
-handle_call({remove, {Name, Options}}, _From, State) ->
-    case do_remove(Name, Options, State#state.tasks, State#state.queue) of
-        {ok, {Tasks, Queue}} ->
-            {reply, ok, State#state{tasks=Tasks,queue=Queue}};
-        Reply ->
-            {reply, Reply, State}
-    end;
 handle_call(_Msg, _From, State) ->
     {reply, noknow, State}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({check_task,Timestamp}, State) ->
-    {Tasks, Queue} = do_tick(State#state.tasks, State#state.queue, Timestamp),
-    {noreply, State#state{tasks=Tasks,queue=Queue}};
+handle_info({ecrontab_tick, Seconds}, State) ->
+    do_tick(Seconds, State#state.tid),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
-terminate(_Reason, _State) ->
-    % todo cancel tick
+terminate(_Reason, State) ->
+    ecrontab_task_manager:unreg_server(State#state.tid),
     ok.
 
 code_change(_Old, State, _Extra) ->
@@ -77,58 +47,21 @@ code_change(_Old, State, _Extra) ->
 %% internal API
 %% ====================================================================
 
-do_add(Name, Spec, MFA, Options, Tasks, Queue) ->
-    case gb_trees:is_defined(Name, Tasks) of
-        true  ->
-            {error, task_exists};
-        false ->
-            NowDatetime = erlang:localtime(),
-            NowTimestamp = ecrontab_time_util:datetime_to_timestamp(NowDatetime),
-            case ecrontab_next_time:next_time(Spec, NowDatetime, NowTimestamp) of
-                {ok, Time} ->
-                    Task = #task{spec=Spec, mfa=MFA, next=Time, options=Options},
-                    {ok, {gb_trees:insert(Name, Task, Tasks), gb_trees:insert({Time, Name}, Name, Queue)}};
-                {error, Rsn} ->
-                    {error, Rsn}
-            end
+do_tick(NowSeconds, Tid) ->
+    case ets:lookup(Tid, NowSeconds) of
+        [] ->
+            ok;
+        [#next_time{tasks = []}] ->
+            ok;
+        [#next_time{tasks = Tasks}] ->
+            loop_tasks(Tasks)
     end.
 
-do_remove(Name, _Options, Tasks, Queue) ->
-    case gb_trees:lookup(Name, Tasks) of
-        {value, #task{next=Time}} ->
-            {ok, {gb_trees:delete(Name, Tasks), gb_trees:delete_any({Time, Name}, Queue)}};
-        none ->
-            {error, no_such_task}
-    end.
-
-do_tick(Tasks0, Queue0, Timestamp) ->
-    case gb_trees:size(Queue0) of
-        0 ->
-            {Tasks0, Queue0};
-        _ ->
-            Datetime = ecrontab_time_util:timestamp_to_datetime(Timestamp),
-            case gb_trees:take_smallest(Queue0) of
-                {{Time, Name}, Name, Queue1} when Time =< Timestamp ->
-                    Task = gb_trees:get(Name, Tasks0),
-                    do_spawn_task(Task#task.mfa),
-                    {Tasks, Queue} = try_schedule(Name, Task, Tasks0, Queue1, Datetime, Timestamp),
-                    do_tick(Tasks, Queue, Timestamp);
-                {{_Time, _Name}, _Name, _Queue} ->
-                    {Tasks0, Queue0}
-            end
-    end.
+loop_tasks([]) ->
+    ok;
+loop_tasks([Task|Tasks]) ->
+    do_spawn_task(Task#task.mfa),
+    loop_tasks(Tasks).
 
 do_spawn_task({M,F,A}) ->
     erlang:spawn(M, F, A).
-
-try_schedule(Name, Task, Tasks0, Queue0, NowDatetime, NowTimestamp) ->
-    case ecrontab_next_time:next_time(Task#task.spec, NowDatetime, NowTimestamp) of
-        {ok, Time} ->
-            lager:info("~p next start: ~p", [Name, Time]),
-            {gb_trees:update(Name, Task#task{next=Time}, Tasks0),
-             gb_trees:insert({Time, Name}, Name, Queue0)};
-        {error, Reason} ->
-            lager:info("~p unable to find next start: ~p", [Name, Reason]),
-            {gb_trees:update(Name, Task#task{next=undefined}, Tasks0), Queue0}
-    end.
-

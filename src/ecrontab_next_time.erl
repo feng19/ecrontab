@@ -1,39 +1,58 @@
 -module(ecrontab_next_time).
--include("ecrontab.hrl").
+-include("ecrontab_parse.hrl").
 
 -export([
-    next_time/2, next_time/3
+    next_time/1, next_time/2, next_time/3
 ]).
 
 
 %% ====================================================================
 %% next_time
 %% ====================================================================
-next_time(Spec, NowTimestamp) when is_integer(NowTimestamp) ->
-	next_time(Spec, ecrontab_time_util:timestamp_to_datetime(NowTimestamp), NowTimestamp);
+next_time(Spec) ->
+	next_time(Spec, erlang:localtime(), []).
+-spec next_time(Spec :: spec(), NowDatetime :: calendar:datetime()) ->
+    {ok, NextTime :: non_neg_integer() | calendar:datetime() | non_neg_integer()}
+        | {false, time_over}.
 next_time(Spec, NowDatetime) ->
-	next_time(Spec, NowDatetime, ecrontab_time_util:datetime_to_timestamp(NowDatetime)).
--spec next_time(Spec :: spec(), NowDatetime :: calendar:datetime(), NowTimestamp :: non_neg_integer()) ->
-    {ok, Timestamp :: non_neg_integer()}|{false, time_over}.
-next_time(#spec{type = ?SPEC_TYPE_INTERVAL_YEAR, year = #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL,value = Interval}} = Spec,
-    NowDatetime, NowTimestamp) ->
+    next_time(Spec, NowDatetime, []).
+next_time(Spec, NowDatetime, Options) ->
+    case next_time_do(Spec, NowDatetime) of
+        {ok, NextDatetime} = Result ->
+            case proplists:get_value(return , Options) of
+                datetime ->
+                    Result;
+                timestamp ->
+                    {ok, ecrontab_time_util:datetime_to_timestamp(NextDatetime)};
+                seconds ->
+                    {ok, calendar:datetime_to_gregorian_seconds(NextDatetime)};
+                _ ->
+                    Result
+            end;
+        Err ->
+            Err
+    end.
+
+next_time_do(#spec{type = ?SPEC_TYPE_INTERVAL_YEAR, year = #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL,value = Interval}} = Spec,
+    NowDatetime) ->
     {{LastYear,_,_},_} = NowDatetime,
     NextYear = LastYear+Interval,
     SpecField = #spec_field{type = ?SPEC_FIELD_TYPE_NUM,value = NextYear},
     NewSpec = ecrontab_parse:get_spec_type(Spec#spec{year = SpecField}),
-    next_time(NewSpec, NowDatetime, NowTimestamp);
-next_time(#spec{type=?SPEC_TYPE_EVERY_SECOND}, _, NowTimestamp) ->
-    {ok, NowTimestamp+1};
-next_time(#spec{type=?SPEC_TYPE_TIMESTAMP,value=Timestamp}, _, NowTimestamp) ->
+    next_time_do(NewSpec, NowDatetime);
+next_time_do(#spec{type=?SPEC_TYPE_EVERY_SECOND}, NowDatetime) ->
+    {ok, ecrontab_time_util:next_second(NowDatetime)};
+next_time_do(#spec{type=?SPEC_TYPE_SECONDS,value=Seconds}, NowDatetime) ->
+    Datetime = calendar:gregorian_seconds_to_datetime(Seconds),
     if
-        Timestamp > NowTimestamp ->
-            {ok, Timestamp};
+        Datetime > NowDatetime ->
+            {ok, Datetime};
         true ->
             {false, time_over}
     end;
-next_time(#spec{type=?SPEC_TYPE_ONLY_ONE,value=N}=Spec, NowDatetime, NowTimestamp) ->
-    next_time_only_one(N, Spec, NowDatetime, NowTimestamp);
-next_time(Spec, NowDatetime, _) ->
+next_time_do(#spec{type=?SPEC_TYPE_ONLY_ONE,value=N}=Spec, NowDatetime) ->
+    next_time_only_one(N, Spec, NowDatetime);
+next_time_do(Spec, NowDatetime) ->
     #spec{year = Year, month = Month, day = Day, week = Week,
         hour = Hour, minute = Minute, second = Second} = Spec,
     next_time_year(Year, Month, Day, Week, Hour, Minute, Second, NowDatetime).
@@ -181,8 +200,8 @@ next_time_day_or_week(Year, Month, Day, Week, Hour, Minute, Second, NowDatetime)
                     Result;
                 {Result, false} ->
                     Result;
-                {{ok, Timestamp1}, {ok, Timestamp2}} when Timestamp1 < Timestamp2 ->
-                    {ok, Timestamp1};
+                {{ok, Seconds1}, {ok, Seconds2}} when Seconds1 < Seconds2 ->
+                    {ok, Seconds1};
                 {_, Result} ->
                     Result
             end
@@ -534,12 +553,10 @@ next_time_second(Date, Hour, Minute, #spec_field{type = ?SPEC_FIELD_TYPE_NUM,val
                 NowSecond >= Second ->
                     false;
                 true ->
-                    Timestamp = ecrontab_time_util:datetime_to_timestamp({Date, {Hour, Minute, Second}}),
-                    {ok, Timestamp}
+                    {ok, {Date, {Hour, Minute, Second}}}
             end;
         _ ->
-            Timestamp = ecrontab_time_util:datetime_to_timestamp({Date, {Hour, Minute, Second}}),
-            {ok, Timestamp}
+            {ok, {Date, {Hour, Minute, Second}}}
     end;
 next_time_second(Date, Hour, Minute, #spec_field{type = ?SPEC_FIELD_TYPE_LIST,value = List}, NowDatetime) ->
     case NowDatetime of
@@ -550,7 +567,7 @@ next_time_second(Date, Hour, Minute, #spec_field{type = ?SPEC_FIELD_TYPE_LIST,va
             Datetime = {Date, {Hour,Minute,NextSecond}},
             if
                 Datetime > NowDatetime ->
-                    {ok, ecrontab_time_util:datetime_to_timestamp(Datetime)};
+                    {ok, Datetime};
                 true ->
                     next_time_second_list(Date, Hour, Minute, NextSecond, List, NowDatetime)
             end
@@ -560,7 +577,7 @@ next_time_second_any(Date, Hour, Minute, NowSecond, NowDatetime) ->
     Datetime = {Date, {Hour,Minute,NowSecond}},
     if
         Datetime > NowDatetime ->
-            {ok, ecrontab_time_util:datetime_to_timestamp(Datetime)};
+            {ok, Datetime};
         true ->
             case NowSecond of
                 59 ->
@@ -578,7 +595,7 @@ next_time_second_list(Date, Hour, Minute, NowSecond, List, NowDatetime) ->
             Datetime = {Date, {Hour,Minute,NextSecond}},
             if
                 Datetime > NowDatetime ->
-                    {ok, ecrontab_time_util:datetime_to_timestamp(Datetime)};
+                    {ok, Datetime};
                 true ->
                     next_time_second_list(Date, Hour, Minute, NextSecond, List, NowDatetime)
             end
@@ -588,16 +605,15 @@ next_time_second_list(Date, Hour, Minute, NowSecond, List, NowDatetime) ->
 %% next_time_only_one start
 %% ====================================================================
 
-next_time_only_one(#spec.year,Spec,NowDatetime,NowTimestamp) ->
+next_time_only_one(#spec.year,Spec,NowDatetime) ->
     SpecField = Spec#spec.year,
     NowYear = ecrontab_time_util:get_datetime_year(NowDatetime),
     case is_passed_spec_field(NowYear, SpecField) of
         true ->
-            Timestamp = NowTimestamp+1,
-            NewDatetime = ecrontab_time_util:timestamp_to_datetime(Timestamp),
+            NewDatetime = ecrontab_time_util:next_second(NowDatetime),
             case ecrontab_time_util:get_datetime_year(NewDatetime) of
                 NowYear ->
-                    {ok, Timestamp};
+                    {ok, NewDatetime};
                 _ ->
                     next_time_only_one_year(SpecField,NowDatetime)
             end;
@@ -605,96 +621,90 @@ next_time_only_one(#spec.year,Spec,NowDatetime,NowTimestamp) ->
             next_time_only_one_year(SpecField,NowDatetime)
     end;
 
-next_time_only_one(#spec.month,Spec,NowDatetime,NowTimestamp) ->
+next_time_only_one(#spec.month,Spec,NowDatetime) ->
     SpecField = Spec#spec.month,
     NowMonth = ecrontab_time_util:get_datetime_month(NowDatetime),
     case is_passed_spec_field(NowMonth, SpecField) of
         true ->
-            Timestamp = NowTimestamp+1,
-            NewDatetime = ecrontab_time_util:timestamp_to_datetime(Timestamp),
+            NewDatetime = ecrontab_time_util:next_second(NowDatetime),
             case ecrontab_time_util:get_datetime_month(NewDatetime) of
                 NowMonth ->
-                    {ok, Timestamp};
+                    {ok, NewDatetime};
                 _ ->
                     next_time_only_one_month(SpecField,NowDatetime)
             end;
         false ->
             next_time_only_one_month(SpecField,NowDatetime)
     end;
-next_time_only_one(#spec.day,Spec,NowDatetime,NowTimestamp) ->
+next_time_only_one(#spec.day,Spec,NowDatetime) ->
     SpecField = Spec#spec.day,
     NowDay = ecrontab_time_util:get_datetime_day(NowDatetime),
     case is_passed_spec_field(NowDay, SpecField) of
         true ->
-            Timestamp = NowTimestamp+1,
-            NewDatetime = ecrontab_time_util:timestamp_to_datetime(Timestamp),
+            NewDatetime = ecrontab_time_util:next_second(NowDatetime),
             case ecrontab_time_util:get_datetime_day(NewDatetime) of
                 NowDay ->
-                    {ok, Timestamp};
+                    {ok, NewDatetime};
                 _ ->
                     next_time_only_one_day(SpecField,NowDatetime)
             end;
         false ->
             next_time_only_one_day(SpecField,NowDatetime)
     end;
-next_time_only_one(#spec.week,Spec,NowDatetime,NowTimestamp) ->
+next_time_only_one(#spec.week,Spec,NowDatetime) ->
     NowWeek = calendar:day_of_the_week(element(1,NowDatetime)),
     SpecField = Spec#spec.week,
     case is_passed_spec_field(NowWeek, SpecField) of
         true ->
-            Timestamp = NowTimestamp+1,
-            NewDatetime = ecrontab_time_util:timestamp_to_datetime(Timestamp),
+            NewDatetime = ecrontab_time_util:next_second(NowDatetime),
             case ecrontab_time_util:get_datetime_week(NewDatetime) of
                 NowWeek ->
-                    {ok, Timestamp};
+                    {ok, NewDatetime};
                 _ ->
                     next_time_only_one_week(SpecField,NowWeek,NowDatetime)
             end;
         false ->
             next_time_only_one_week(SpecField,NowWeek,NowDatetime)
     end;
-next_time_only_one(#spec.hour,Spec,NowDatetime,NowTimestamp) ->
+next_time_only_one(#spec.hour,Spec,NowDatetime) ->
     SpecField = Spec#spec.hour,
     NowHour = ecrontab_time_util:get_datetime_hour(NowDatetime),
     case is_passed_spec_field(NowHour, SpecField) of
         true ->
-            Timestamp = NowTimestamp+1,
-            NewDatetime = ecrontab_time_util:timestamp_to_datetime(Timestamp),
+            NewDatetime = ecrontab_time_util:next_second(NowDatetime),
             case ecrontab_time_util:get_datetime_hour(NewDatetime) of
                 NowHour ->
-                    {ok, Timestamp};
+                    {ok, NewDatetime};
                 _ ->
                     next_time_only_one_hour(SpecField,NowDatetime)
             end;
         false ->
             next_time_only_one_hour(SpecField,NowDatetime)
     end;
-next_time_only_one(#spec.minute,Spec,NowDatetime,NowTimestamp) ->
+next_time_only_one(#spec.minute,Spec,NowDatetime) ->
     SpecField = Spec#spec.minute,
     NowMinute = ecrontab_time_util:get_datetime_minute(NowDatetime),
     case is_passed_spec_field(NowMinute, SpecField) of
         true ->
-            Timestamp = NowTimestamp+1,
-            NewDatetime = ecrontab_time_util:timestamp_to_datetime(Timestamp),
+            NewDatetime = ecrontab_time_util:next_second(NowDatetime),
             case ecrontab_time_util:get_datetime_minute(NewDatetime) of
                 NowMinute ->
-                    {ok, Timestamp};
+                    {ok, NewDatetime};
                 _ ->
                     next_time_only_one_minute(SpecField,NowDatetime)
             end;
         false ->
             next_time_only_one_minute(SpecField,NowDatetime)
     end;
-next_time_only_one(#spec.second,Spec,NowDatetime,NowTimestamp) ->
+next_time_only_one(#spec.second,Spec,NowDatetime) ->
     SpecField = Spec#spec.second,
     NowSecond = ecrontab_time_util:get_datetime_minute(NowDatetime),
     case is_passed_spec_field(NowSecond, SpecField) of
         true ->
-            Timestamp = NowTimestamp+1,
-            NewDatetime = ecrontab_time_util:timestamp_to_datetime(Timestamp),
+            NewDatetime = ecrontab_time_util:next_second(NowDatetime),
             case ecrontab_time_util:get_datetime_second(NewDatetime) of
                 NowSecond ->
-                    {ok, Timestamp};
+                    {ok, NewDatetime};
                 _ ->
                     next_time_only_one_second(SpecField,NowDatetime)
             end;
@@ -708,7 +718,7 @@ next_time_only_one_year(SpecField,{{NowYear,_,_},_}) ->
             NextYear = SpecField#spec_field.value,
             if
                 NextYear > NowYear ->
-                    {ok, ecrontab_time_util:datetime_to_timestamp({{SpecField#spec_field.value,1,1},{0,0,0}})};
+                    {ok, {{SpecField#spec_field.value,1,1},{0,0,0}}};
                 true ->
                     {false, time_over}
             end;
@@ -718,7 +728,7 @@ next_time_only_one_year(SpecField,{{NowYear,_,_},_}) ->
                 false ->
                     {false, time_over};
                 NextYear ->
-                    {ok, ecrontab_time_util:datetime_to_timestamp({{NextYear,1,1},{0,0,0}})}
+                    {ok, {{NextYear,1,1},{0,0,0}}}
             end
     end.
 
@@ -728,18 +738,18 @@ next_time_only_one_month(SpecField,{{Y,NowMonth,_},_}) ->
             NextMonth = SpecField#spec_field.value,
             if
                 NextMonth > NowMonth ->
-                    {ok, ecrontab_time_util:datetime_to_timestamp({{Y,NextMonth,1},{0,0,0}})};
+                    {ok, {{Y,NextMonth,1},{0,0,0}}};
                 true ->
-                    {ok, ecrontab_time_util:datetime_to_timestamp({{Y+1,NextMonth,1},{0,0,0}})}
+                    {ok, {{Y+1,NextMonth,1},{0,0,0}}}
             end;
         ?SPEC_FIELD_TYPE_LIST ->
             List = SpecField#spec_field.value,
             case find_next_in_list(NowMonth,List) of
                 false ->
                     NextMonth = hd(List),
-                    {ok, ecrontab_time_util:datetime_to_timestamp({{Y+1,NextMonth,1},{0,0,0}})};
+                    {ok, {{Y+1,NextMonth,1},{0,0,0}}};
                 NextMonth ->
-                    {ok, ecrontab_time_util:datetime_to_timestamp({{Y,NextMonth,1},{0,0,0}})}
+                    {ok, {{Y,NextMonth,1},{0,0,0}}}
             end
     end.
 
@@ -771,7 +781,7 @@ next_time_only_one_day(SpecField,{{Y,M,NowDay},_}) ->
                             NextDay2 = hd(List),
                             next_time_only_one_day_do(Y,M,NextDay2,{0,0,0});
                         true ->
-                            {ok, ecrontab_time_util:datetime_to_timestamp({{Y,M,NextDay},{0,0,0}})}
+                            {ok, {{Y,M,NextDay},{0,0,0}}}
                     end
             end
     end.
@@ -787,7 +797,7 @@ next_time_only_one_day_do(Y,M,NextDay,Time) ->
                     next_time_only_one_day_do(Y,M+1,NextDay,Time)
             end;
         true ->
-            {ok, ecrontab_time_util:datetime_to_timestamp({{Y,M,NextDay},Time})}
+            {ok, {{Y,M,NextDay},Time}}
     end.
 
 next_time_only_one_week(SpecField,NowWeek,{Date,_}) ->
@@ -813,7 +823,7 @@ next_time_only_one_week(SpecField,NowWeek,{Date,_}) ->
             end
     end,
     NewDate = calendar:gregorian_days_to_date(NewDays),
-    {ok,ecrontab_time_util:datetime_to_timestamp({NewDate,{0,0,0}})}.
+    {ok,{NewDate,{0,0,0}}}.
 
 next_time_only_one_hour(SpecField,{Date,{NowHour,_,_}}) ->
     DateTime =
@@ -836,7 +846,7 @@ next_time_only_one_hour(SpecField,{Date,{NowHour,_,_}}) ->
                     {Date,{NextHour,0,0}}
             end
     end,
-    {ok, ecrontab_time_util:datetime_to_timestamp(DateTime)}.
+    {ok, DateTime}.
 
 next_time_only_one_minute(SpecField,{Date,{HH,NowMinute,_}}) ->
     DateTime =
@@ -859,7 +869,7 @@ next_time_only_one_minute(SpecField,{Date,{HH,NowMinute,_}}) ->
                     {Date,{HH,NextMinute,0}}
             end
     end,
-    {ok, ecrontab_time_util:datetime_to_timestamp(DateTime)}.
+    {ok, DateTime}.
 
 next_time_only_one_second(SpecField,{Date,{HH,MM,NowSecond}}) ->
     DateTime =
@@ -882,7 +892,7 @@ next_time_only_one_second(SpecField,{Date,{HH,MM,NowSecond}}) ->
                     {Date,{HH,MM,NextSecond}}
             end
     end,
-    {ok, ecrontab_time_util:datetime_to_timestamp(DateTime)}.
+    {ok, DateTime}.
 
 %% ====================================================================
 %% next_time_only_one end

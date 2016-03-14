@@ -1,6 +1,6 @@
 -module(ecrontab_parse_test).
 -include_lib("eunit/include/eunit.hrl").
--include("ecrontab.hrl").
+-include("ecrontab_parse.hrl").
 
 
 all_test_() ->
@@ -645,7 +645,7 @@ interval_test_list() ->
 timestamp_test_list() ->
     [
         ?_assertEqual(
-            {ok,#spec{type=?SPEC_TYPE_TIMESTAMP,value=1459627500,
+            {ok,#spec{type=?SPEC_TYPE_SECONDS,value=63626875500,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 2016},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 3},
@@ -656,7 +656,7 @@ timestamp_test_list() ->
             }},
             ecrontab_parse:parse_spec({2016, 4, 3, '*', 4, 5, 0},[])),
         ?_assertEqual(
-            {ok,#spec{type=?SPEC_TYPE_TIMESTAMP,value=1459627500,
+            {ok,#spec{type=?SPEC_TYPE_SECONDS,value=63626875500,
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 2016},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 3},
@@ -665,7 +665,7 @@ timestamp_test_list() ->
                 minute = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 5},
                 second = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 0}
             }},
-            ecrontab_parse:parse_spec({2016, 4, 3, '*', 4, 5, 0},[{filter_over_time,{{{2016,4,3}, {4,4,0}},1459627440}}]))
+            ecrontab_parse:parse_spec({2016, 4, 3, '*', 4, 5, 0},[{ filter_over_time, {{2016,4,3}, {4,4,0}} }]))
     ].
 
 fail_test_list() ->
@@ -675,7 +675,7 @@ fail_test_list() ->
         ?_assertEqual({error, time_over},
             ecrontab_parse:parse_spec([2015, 2, 3, '*', 4, 5, 0])),
         ?_assertEqual({error, time_over},
-            ecrontab_parse:parse_spec({3016, 4, 3, '*', 4, 5, 0},[{filter_over_time,{{{3016,5,3}, {4,4,0}},33019128240}}])),
+            ecrontab_parse:parse_spec({3016, 4, 3, '*', 4, 5, 0},[{ filter_over_time, {{3016,5,3}, {4,4,0}} }])),
         ?_assertEqual({error, time_over},
             ecrontab_parse:parse_spec([2016, 2, 3, '*', 4, 5, 0])),
         ?_assertEqual({error, {year, invalid_value}},

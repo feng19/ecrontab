@@ -53,8 +53,7 @@ datetime_to_timestamp(Datetime0) ->
     calendar:datetime_to_gregorian_seconds(Datetime) - ?SECS_1970.
 
 timestamp_to_datetime(Timestamp) ->
-    Datetime = calendar:gregorian_seconds_to_datetime(
-                   ?SECS_1970 + Timestamp),
+    Datetime = calendar:gregorian_seconds_to_datetime(?SECS_1970 + Timestamp),
     erlang:universaltime_to_localtime(Datetime).
 
 %% ====================================================================

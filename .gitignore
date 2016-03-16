@@ -1,4 +1,7 @@
 .eunit
+cover
+eunit.coverdata
+ct.cover.spec
 rebar.lock
 deps
 *.o

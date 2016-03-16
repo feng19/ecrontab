@@ -8,5 +8,7 @@ PROJECT = ecrontab
 ERLC_OPTS += +no_debug_info
 #ERLC_OPTS += +'{parse_transform, lager_transform}'
 
+COVER = true
+
 include erlang.mk
 

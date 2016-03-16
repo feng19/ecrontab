@@ -2,13 +2,51 @@
 -include("ecrontab_parse.hrl").
 
 -export([
+    next_timestamp/1, next_timestamp/2, next_timestamp/3,
+    next_seconds/1, next_seconds/2, next_seconds/3,
+    next_datetime/1, next_datetime/2, next_datetime/3,
     next_time/1, next_time/2, next_time/3
 ]).
 
+%% ====================================================================
+%% API
+%% ====================================================================
+
+next_timestamp(Spec) ->
+    next_timestamp(Spec, erlang:localtime()).
+next_timestamp(Spec, NowDatetime) ->
+    next_timestamp(Spec, NowDatetime, []).
+next_timestamp(Spec, NowDatetime, _Options) ->
+    case next_time_do(Spec, NowDatetime) of
+        {ok, Datetime} ->
+            {ok, ecrontab_time_util:datetime_to_timestamp(Datetime)};
+        Err ->
+            Err
+    end.
+
+next_seconds(Spec) ->
+    next_seconds(Spec, erlang:localtime()).
+next_seconds(Spec, NowDatetime) ->
+    next_seconds(Spec, NowDatetime, []).
+next_seconds(Spec, NowDatetime, _Options) ->
+    case next_time_do(Spec, NowDatetime) of
+        {ok, Datetime} ->
+            {ok, calendar:datetime_to_gregorian_seconds(Datetime)};
+        Err ->
+            Err
+    end.
+
+next_datetime(Spec) ->
+    next_datetime(Spec, erlang:localtime()).
+next_datetime(Spec, NowDatetime) ->
+    next_datetime(Spec, NowDatetime, []).
+next_datetime(Spec, NowDatetime, _Options) ->
+    next_time_do(Spec, NowDatetime).
 
 %% ====================================================================
 %% next_time
 %% ====================================================================
+
 next_time(Spec) ->
 	next_time(Spec, erlang:localtime(), []).
 -spec next_time(Spec :: spec(), NowDatetime :: calendar:datetime()) ->

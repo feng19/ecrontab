@@ -1,9 +1,9 @@
 
 -define(GROUP_NAME, ecrontab_group).
 
--define(ONE_PROCESS_MAX_TASKS, 10000).
+-define(ONE_PROCESS_MAX_TASKS_COUNT, 10000).
 
--define(ETS_NAME_TASKS, ets_tasks).
+-define(ETS_NAME_TASK_INDEX, ets_task_index).
 
--record(task, {name, spec, mfa, options}).
--record(next_time, {seconds, tasks}).
+-record(task_index, {name, tid}).
+-record(task, {name, spec, mfa, add_time, options}).

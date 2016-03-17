@@ -5,17 +5,16 @@
 
 -export([
     start_link/0,
-    tick/1,
     add/4, add/5,
     remove/2,
     reg_server/1,
     unreg_server/1,
-    task_over/1
+    task_over/2
 ]).
 
 -define(SERVER, ?MODULE).
--record(state, {server_ets_name_counter=0,servers=[],unlive_servers=[]}).%servers todo use gbtree
--record(server, {pid,tid,task_count=0}).
+-record(state, {server_ets_name_counter=0,servers=[],unlive_servers=[]}).
+-record(server, {task_count=0,pid,tid}).
 
 %%%===================================================================
 %%% API
@@ -23,9 +22,6 @@
 
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
-tick(Seconds) ->
-    gen_server:cast(?SERVER, {ecrontab_tick, Seconds}).
 
 %% add/4
 add(Name, Spec, MFA, Options) ->
@@ -57,8 +53,8 @@ reg_server(Pid) ->
 unreg_server(Pid) ->
     gen_server:cast(?SERVER, {unreg_server, Pid}).
 
-task_over(Name) ->
-    gen_server:cast(?SERVER, {task_over, Name}).
+task_over(Name, Tid) ->
+    gen_server:cast(?SERVER, {task_over, Name, Tid}).
 %%already_exists
 
 
@@ -94,11 +90,11 @@ handle_call({reg_server, Pid}, _From, State) ->
         [] ->
             Counter = State#state.server_ets_name_counter+1,
             Tid = new_server_ets(Counter),
-            Servers = sort_servers([#server{pid = Pid,tid = Tid}|State#state.servers]),
+            Servers = add_server(#server{pid = Pid,tid = Tid}, State#state.servers),
             {reply, Tid, State#state{server_ets_name_counter = Counter,servers = Servers}};
         [Server|UnliveServers] ->
             Tid = Server#server.tid,
-            Servers = sort_servers([Server#server{pid = Pid}|State#state.servers]),
+            Servers = add_server(Server#server{pid = Pid}, State#state.servers),
             {reply, Tid, State#state{servers = Servers, unlive_servers = UnliveServers}}
     end;
 handle_call(_Request, _From, State) ->
@@ -113,12 +109,9 @@ handle_cast({unreg_server, Tid}, State) ->
             UnliveServers = [Server#server{pid = undefined}|State#state.unlive_servers],
             {noreply, State#state{servers = Servers2,unlive_servers = UnliveServers}}
     end;
-handle_cast({task_over, Name}, State) ->
-    {ok, NewState} = do_task_over(Name, State),
+handle_cast({task_over, Name, Tid}, State) ->%todo handle large msg
+    {ok, NewState} = do_task_over(Name, Tid, State),
     {noreply, NewState};
-handle_cast({ecrontab_tick, _Seconds}, State) ->
-    %todo other use
-    {noreply, State};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -143,8 +136,10 @@ new_server_ets(N) ->
             {read_concurrency, true}
         ]).
 
-sort_servers(Servers) ->
-    lists:keysort(#server.task_count, Servers).
+add_server(E, [H|Es]) when E#server.task_count > H#server.task_count -> [H|add_server(E, Es)];
+add_server(E, [H|_]=Set) when E#server.task_count < H#server.task_count -> [E|Set];
+add_server(_E, [_H|_]=Set) -> Set;		%E == H
+add_server(E, []) -> [E].
 
 do_add(Task, State) ->
     case State#state.servers of
@@ -156,7 +151,7 @@ do_add(Task, State) ->
                         ok ->
                             ets:insert(Tid, Task),
                             NewServer = Server#server{task_count = Server#server.task_count + 1},
-                            NewServers = sort_servers([NewServer|Servers]),
+                            NewServers = add_server(NewServer, Servers),
                             {ok, State#state{servers = NewServers}};
                         Err ->
                             ets:delete(?ETS_NAME_TASK_INDEX, Task#task.name),
@@ -179,7 +174,7 @@ do_remove(Name, _Options, State) ->
             case lists:keytake(Tid, #server.tid, State#state.servers) of
                 {value, Server, Servers0} ->
                     ecrontab_server:remove(Server#server.pid, Task),
-                    Servers = sort_servers([Server#server{task_count = Server#server.task_count-1}|Servers0]),
+                    Servers = add_server(Server#server{task_count = Server#server.task_count-1}, Servers0),
                     {ok, State#state{servers = Servers}};
                 false ->
                     UnliveServers = lists:keydelete(Tid, #server.tid, State#state.unlive_servers),
@@ -189,20 +184,14 @@ do_remove(Name, _Options, State) ->
             {error, no_such_task}
     end.
 
-do_task_over(Name, State) ->
-    case ets:lookup(?ETS_NAME_TASK_INDEX, Name) of
-        [TaskIndex] ->
-            ets:delete(?ETS_NAME_TASK_INDEX, Name),
-            Tid = TaskIndex#task_index.tid,
-            ets:delete(Tid, Name),
-            case lists:keytake(Tid, #server.tid, State#state.servers) of
-                {value, Server, Servers0} ->
-                    Servers = sort_servers([Server#server{task_count = Server#server.task_count-1}|Servers0]),
-                    {ok, State#state{servers = Servers}};
-                false ->
-                    UnliveServers = lists:keydelete(Tid, #server.tid, State#state.unlive_servers),
-                    {ok, State#state{unlive_servers = UnliveServers}}
-            end;
-        []  ->
-            {ok, State}
+do_task_over(Name, Tid, State) ->
+    ets:delete(?ETS_NAME_TASK_INDEX, Name),
+    ets:delete(Tid, Name),
+    case lists:keytake(Tid, #server.tid, State#state.servers) of
+        {value, Server, Servers0} ->
+            Servers = add_server(Server#server{task_count = Server#server.task_count-1}, Servers0),
+            {ok, State#state{servers = Servers}};
+        false ->
+            UnliveServers = lists:keydelete(Tid, #server.tid, State#state.unlive_servers),
+            {ok, State#state{unlive_servers = UnliveServers}}
     end.

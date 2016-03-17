@@ -37,7 +37,6 @@ handle_info(tick, State) ->
     Seconds = State#state.seconds+1,
 %%    NowSeconds = calendar:datetime_to_gregorian_seconds(erlang:localtime()),
 %%    io:format("diff Seconds:~p~n",[NowSeconds-Seconds]),
-    ecrontab_task_manager:tick(Seconds),
     PidList = pg2:get_members(?GROUP_NAME),
     loop_send(PidList, Seconds),
     {noreply, #state{seconds = Seconds}};

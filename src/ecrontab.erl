@@ -33,6 +33,8 @@ add(Name, Spec, MFA) ->
     add(Name, Spec, MFA, []).
 add(Name, Spec0, {M,F,A}=MFA, Options) when is_atom(M) andalso is_atom(F) andalso is_list(A) ->
     do_add(Name, Spec0, MFA, Options);
+add(Name, Spec0, {_Node,M,F,A}=MFA, Options) when is_atom(M) andalso is_atom(F) andalso is_list(A) ->
+    do_add(Name, Spec0, MFA, Options);
 add(Name, Spec0, Fun, Options) when is_function(Fun, 0) ->
     do_add(Name, Spec0, Fun, Options).
 

@@ -19,7 +19,7 @@ start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
 add(Pid, Task) ->
-    gen_server:call(Pid, {add, Task}).%todo infinity
+    gen_server:call(Pid, {add, Task}).
 
 remove(Pid, Task) ->
     gen_server:cast(Pid, {remove, Task}).
@@ -30,7 +30,7 @@ remove(Pid, Task) ->
 
 init([]) ->
     pg2:join(?GROUP_NAME, self()),
-    Tid = ecrontab_task_manager:reg_server(self()),%todo is remove tid
+    Tid = ecrontab_task_manager:reg_server(self()),
     NowSeconds = calendar:datetime_to_gregorian_seconds(erlang:localtime()),
     {ok, #state{tid = Tid,now_seconds = NowSeconds}}.
 
@@ -46,7 +46,7 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({ecrontab_tick, Seconds}, State) ->
-    do_tick(Seconds),
+    do_tick(State#state.tid, Seconds),
     {noreply, State#state{now_seconds = Seconds}};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -62,7 +62,7 @@ code_change(_Old, State, _Extra) ->
 %% internal API
 %% ====================================================================
 
-do_tick(NowSeconds) ->
+do_tick(Tid, NowSeconds) ->
     case erlang:erase(NowSeconds) of
         undefined ->
             ok;
@@ -70,23 +70,25 @@ do_tick(NowSeconds) ->
             ok;
         STasks ->
             NowDatetime = calendar:gregorian_seconds_to_datetime(NowSeconds),
-            loop_tasks(NowDatetime,STasks)
+            loop_tasks(Tid, NowDatetime,STasks)
     end.
 
-loop_tasks(_,[]) ->
+loop_tasks(_,_,[]) ->
     ok;
-loop_tasks(NowDatetime, [STask|STasks]) ->
+loop_tasks(Tid, NowDatetime, [STask|STasks]) ->
     do_spawn_task(STask#server_task.mfa),
     case ecrontab_next_time:next_seconds(STask#server_task.spec, NowDatetime) of
         {ok, NextSeconds} ->
             put_in_list(NextSeconds,STask);
         _ ->
-            ecrontab_task_manager:task_over(STask#task.name)
+            ecrontab_task_manager:task_over(STask#task.name, Tid)
     end,
-    loop_tasks(NowDatetime, STasks).
+    loop_tasks(Tid, NowDatetime, STasks).
 
 do_spawn_task({M,F,A}) ->
     erlang:spawn(M, F, A);
+do_spawn_task({Node,M,F,A}) ->
+    rpc:cast(Node,M,F,A);
 do_spawn_task(Fun) ->
     erlang:spawn(Fun).
 

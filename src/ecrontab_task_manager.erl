@@ -9,7 +9,8 @@
     remove/2,
     reg_server/1,
     unreg_server/1,
-    task_over/2
+    task_over/2,
+    delete_task/2
 ]).
 
 -define(SERVER, ?MODULE).
@@ -54,9 +55,12 @@ unreg_server(Pid) ->
     gen_server:cast(?SERVER, {unreg_server, Pid}).
 
 task_over(Name, Tid) ->
-    gen_server:cast(?SERVER, {task_over, Name, Tid}).
-%%already_exists
+    spawn(?MODULE, delete_task, [Tid, Name]),
+    gen_server:cast(?SERVER, {task_over, Tid}).
 
+delete_task(Tid, Name) ->
+    ets:delete(?ETS_NAME_TASK_INDEX, Name),
+    ets:delete(Tid, Name).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -65,7 +69,7 @@ task_over(Name, Tid) ->
 init([]) ->
     process_flag(trap_exit, true),
     ets:new(?ETS_NAME_TASK_INDEX,[
-        named_table,
+        public,named_table,
         {keypos,#task_index.name},
         {write_concurrency, true},
         {read_concurrency, true}]),
@@ -109,8 +113,16 @@ handle_cast({unreg_server, Tid}, State) ->
             UnliveServers = [Server#server{pid = undefined}|State#state.unlive_servers],
             {noreply, State#state{servers = Servers2,unlive_servers = UnliveServers}}
     end;
-handle_cast({task_over, Name, Tid}, State) ->%todo handle large msg
-    {ok, NewState} = do_task_over(Name, Tid, State),
+handle_cast({task_over, Tid}, State) ->%todo handle large msg
+    NewState =
+    case lists:keytake(Tid, #server.tid, State#state.servers) of
+        {value, Server, Servers0} ->
+            Servers = add_server(Server#server{task_count = Server#server.task_count-1}, Servers0),
+            State#state{servers = Servers};
+        false ->
+            UnliveServers = lists:keydelete(Tid, #server.tid, State#state.unlive_servers),
+            State#state{unlive_servers = UnliveServers}
+    end,
     {noreply, NewState};
 handle_cast(_Request, State) ->
     {noreply, State}.
@@ -130,11 +142,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 new_server_ets(N) ->
     ets:new(erlang:binary_to_atom(<<"ets_tasks_",(integer_to_binary(N))/binary>>, utf8),
-        [
-            {keypos,#task.name},
-            {write_concurrency, true},
-            {read_concurrency, true}
-        ]).
+        [public,{keypos,#task.name},{write_concurrency, true},{read_concurrency, true}]).
 
 add_server(E, [H|Es]) when E#server.task_count > H#server.task_count -> [H|add_server(E, Es)];
 add_server(E, [H|_]=Set) when E#server.task_count < H#server.task_count -> [E|Set];
@@ -182,16 +190,4 @@ do_remove(Name, _Options, State) ->
             end;
         []  ->
             {error, no_such_task}
-    end.
-
-do_task_over(Name, Tid, State) ->
-    ets:delete(?ETS_NAME_TASK_INDEX, Name),
-    ets:delete(Tid, Name),
-    case lists:keytake(Tid, #server.tid, State#state.servers) of
-        {value, Server, Servers0} ->
-            Servers = add_server(Server#server{task_count = Server#server.task_count-1}, Servers0),
-            {ok, State#state{servers = Servers}};
-        false ->
-            UnliveServers = lists:keydelete(Tid, #server.tid, State#state.unlive_servers),
-            {ok, State#state{unlive_servers = UnliveServers}}
     end.

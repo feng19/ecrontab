@@ -31,7 +31,10 @@ remove(Pid, Task) ->
 init([]) ->
     pg2:join(?GROUP_NAME, self()),
     Tid = ecrontab_task_manager:reg_server(self()),
-    NowSeconds = calendar:datetime_to_gregorian_seconds(erlang:localtime()),
+    TaskList = ets:tab2list(Tid),
+    NowDatetime = erlang:localtime(),
+    loop_init_tasks(Tid, NowDatetime, TaskList),
+    NowSeconds = calendar:datetime_to_gregorian_seconds(NowDatetime),
     {ok, #state{tid = Tid,now_seconds = NowSeconds}}.
 
 handle_call({add, Task}, _From, State) ->
@@ -62,6 +65,18 @@ code_change(_Old, State, _Extra) ->
 %% internal API
 %% ====================================================================
 
+loop_init_tasks(_,_,[]) ->
+    ok;
+loop_init_tasks(Tid, NowDatetime, [Task|Tasks]) ->
+    case ecrontab_next_time:next_seconds(Task#task.spec, NowDatetime) of
+        {ok, NextSeconds} ->
+            STask = task_to_server_task(Task),
+            put_in_list(NextSeconds,STask);
+        _ ->
+            ecrontab_task_manager:task_over(Task#task.name, Tid)
+    end,
+    loop_init_tasks(Tid, NowDatetime, Tasks).
+
 do_tick(Tid, NowSeconds) ->
     case erlang:erase(NowSeconds) of
         undefined ->
@@ -81,7 +96,7 @@ loop_tasks(Tid, NowDatetime, [STask|STasks]) ->
         {ok, NextSeconds} ->
             put_in_list(NextSeconds,STask);
         _ ->
-            ecrontab_task_manager:task_over(STask#task.name, Tid)
+            ecrontab_task_manager:task_over(STask#server_task.name, Tid)
     end,
     loop_tasks(Tid, NowDatetime, STasks).
 
@@ -120,7 +135,9 @@ do_remove(NowSeconds, Task) ->
     NowDatatime = calendar:gregorian_seconds_to_datetime(NowSeconds),
     case ecrontab_next_time:next_seconds(Task#task.spec, NowDatatime) of
         {ok, NextSeconds} ->
-            erlang:erase(NextSeconds);
+            List = erlang:erase(NextSeconds),
+            NewList = lists:keydelete(Task#task.name, #server_task.name, List),
+            put(NextSeconds, NewList);
         _ ->
             none
     end.

@@ -35,10 +35,7 @@ handle_cast(_Msg, State) ->
 
 handle_info(tick, State) ->
     Seconds = State#state.seconds+1,
-%%    NowSeconds = calendar:datetime_to_gregorian_seconds(erlang:localtime()),
-%%    io:format("diff Seconds:~p~n",[NowSeconds-Seconds]),
-    PidList = pg2:get_members(?GROUP_NAME),
-    loop_send(PidList, Seconds),
+    send_to_group(Seconds),
     {noreply, #state{seconds = Seconds}};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -53,6 +50,10 @@ code_change(_Old, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+send_to_group(Seconds) ->
+    PidList = pg2:get_members(?GROUP_NAME),
+    loop_send(PidList, Seconds).
 
 loop_send([Pid|PidList], Seconds) ->
     Pid ! {ecrontab_tick, Seconds},

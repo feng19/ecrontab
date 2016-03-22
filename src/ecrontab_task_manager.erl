@@ -145,8 +145,7 @@ new_server_ets(N) ->
         [public,{keypos,#task.name},{write_concurrency, true},{read_concurrency, true}]).
 
 add_server(E, [H|Es]) when E#server.task_count > H#server.task_count -> [H|add_server(E, Es)];
-add_server(E, [H|_]=Set) when E#server.task_count < H#server.task_count -> [E|Set];
-add_server(_E, [_H|_]=Set) -> Set;		%E == H
+add_server(E, [H|_]=Set) when E#server.task_count =< H#server.task_count -> [E|Set];
 add_server(E, []) -> [E].
 
 do_add(Task, State) ->

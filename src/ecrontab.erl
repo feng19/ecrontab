@@ -1,4 +1,5 @@
 -module(ecrontab).
+-include("ecrontab.hrl").
 -export([
     start/0,
     stop/0,
@@ -60,9 +61,10 @@ app_performance_test(Count,Secs) when Secs > 0 andalso Secs < 60 ->
     eprof:start(),
     Self = self(),
     eprof:profile([Self]),
+    MaxTaskCount = 8 * ?ONE_PROCESS_MAX_TASKS_COUNT,
     if
-        Count > 80000 ->
-            AddChildCount0 = (Count - 80000) / 10000,
+        Count > MaxTaskCount ->
+            AddChildCount0 = (Count - MaxTaskCount) / ?ONE_PROCESS_MAX_TASKS_COUNT,
             AddChildCount1 = erlang:trunc(AddChildCount0),
             AddChildCount =
             case AddChildCount0 - AddChildCount1 == 0 of
@@ -75,9 +77,11 @@ app_performance_test(Count,Secs) when Secs > 0 andalso Secs < 60 ->
         true ->
             none
     end,
-    SecList = app_performance_test_get_sec_list(Secs,erlang:localtime(),[]),
+    Datetime = erlang:localtime(),
+    SecList = app_performance_test_get_sec_list(Secs,Datetime,[]),
     [{ok, Name} = ecrontab:add(Name,{'*','*','*','*','*','*',SecList},fun() -> ok end) ||
         Name <- lists:seq(1,Count)],
+    io:format("add spec ok~n"),
     timer:sleep(Secs*1000),
     ecrontab:stop(),
     eprof:stop_profiling(),

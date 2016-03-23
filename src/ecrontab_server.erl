@@ -3,6 +3,8 @@
 -include("ecrontab.hrl").
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([
+    init_servers/0,
+    min_server_count/0,
     start_link/0,
     add/2,
     remove/2
@@ -15,13 +17,20 @@
 %%% API
 %%%===================================================================
 
+init_servers() ->
+    ServerCount = min_server_count(),
+    [ecrontab_server_sup:start_child()|| _ <- lists:duplicate(ServerCount,ok)].
+
+min_server_count() ->
+    min(4, erlang:system_info(schedulers_online)*2).
+
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
-add(Pid, Task) ->
+add(Pid, Task) ->%todo catch
     gen_server:call(Pid, {add, Task}).
 
-remove(Pid, Task) ->
+remove(Pid, Task) ->%todo catch
     gen_server:cast(Pid, {remove, Task}).
 
 %%%===================================================================

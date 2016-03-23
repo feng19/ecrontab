@@ -4,7 +4,9 @@
     start/0,
     stop/0,
     add/3, add/4,
-    remove/1, remove/2
+    remove/1, remove/2,
+    add_server/0,
+    get_server_count/0
 ]).
 
 %% for test
@@ -53,6 +55,12 @@ remove(Name) ->
 remove(Name, Options) ->
     ecrontab_task_manager:remove(Name, Options).
 
+add_server() ->
+    ecrontab_server_sup:start_child().
+
+get_server_count() ->
+    proplists:get_value(workers, supervisor:count_children(ecrontab_server_sup)).
+
 %% ====================================================================
 %% app performance test
 %% ====================================================================
@@ -61,7 +69,7 @@ app_performance_test(Count,Secs) when Secs > 0 andalso Secs < 60 ->
     eprof:start(),
     Self = self(),
     eprof:profile([Self]),
-    MaxTaskCount = 8 * ?ONE_PROCESS_MAX_TASKS_COUNT,
+    MaxTaskCount = ecrontab_server:min_server_count() * ?ONE_PROCESS_MAX_TASKS_COUNT,
     if
         Count > MaxTaskCount ->
             AddChildCount0 = (Count - MaxTaskCount) / ?ONE_PROCESS_MAX_TASKS_COUNT,
@@ -73,7 +81,7 @@ app_performance_test(Count,Secs) when Secs > 0 andalso Secs < 60 ->
                 _ ->
                     AddChildCount1+1
             end,
-            [ecrontab_server_sup:start_child()||_ <- lists:seq(1,AddChildCount)];
+            [add_server()||_ <- lists:seq(1,AddChildCount)];
         true ->
             none
     end,

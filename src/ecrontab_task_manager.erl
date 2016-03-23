@@ -10,7 +10,8 @@
     reg_server/1,
     unreg_server/1,
     task_over/2,
-    delete_task/2
+    delete_task/2,
+    servers_info/0
 ]).
 
 -define(SERVER, ?MODULE).
@@ -62,6 +63,9 @@ delete_task(Tid, Name) ->
     ets:delete(?ETS_NAME_TASK_INDEX, Name),
     ets:delete(Tid, Name).
 
+servers_info() ->
+    gen_server:call(?SERVER, servers_info).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -101,6 +105,10 @@ handle_call({reg_server, Pid}, _From, State) ->
             Servers = add_server(Server#server{pid = Pid}, State#state.servers),
             {reply, Tid, State#state{servers = Servers, unlive_servers = UnliveServers}}
     end;
+handle_call(servers_info, _From, State) ->
+    Servers = State#state.servers,
+    UnliveServers = State#state.unlive_servers,
+    {reply, [{servers, Servers},{unlive_servers, UnliveServers}], State};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 

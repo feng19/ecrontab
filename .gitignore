@@ -11,8 +11,6 @@ erl_crash.dump
 ebin
 rel
 .rebar
-.project
-.settings
 *~
 *.d
 .erlang.mk
@@ -21,3 +19,5 @@ relx
 .idea
 _build
 *.iml
+logs
+ct.coverdata

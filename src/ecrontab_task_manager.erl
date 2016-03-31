@@ -23,7 +23,7 @@
 %%%===================================================================
 
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    gen_server2:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %% add/4
 add(Name, Spec, MFA, Options) ->
@@ -39,7 +39,7 @@ add(Name, Spec, MFA, NowDatetime, Options) ->
 
 add_do(Name, Spec, MFA, NowDatetime, Options) ->
     Task = #task{name = Name, spec = Spec, mfa = MFA, add_time = NowDatetime, options = Options},
-    case gen_server:call(?SERVER, {add, Task}, infinity) of
+    case gen_server2:call(?SERVER, {add, Task}, infinity) of
         ok ->
             {ok, Name};
         Err ->
@@ -47,27 +47,27 @@ add_do(Name, Spec, MFA, NowDatetime, Options) ->
     end.
 
 remove(Name, Options) ->
-    gen_server:call(?SERVER, {remove, {Name, Options}}).
+    gen_server2:call(?SERVER, {remove, {Name, Options}}).
 
 reg_server(Pid) ->
-    gen_server:call(?SERVER, {reg_server, Pid}).
+    gen_server2:call(?SERVER, {reg_server, Pid}).
 
 unreg_server(Pid) ->
-    gen_server:cast(?SERVER, {unreg_server, Pid}).
+    gen_server2:cast(?SERVER, {unreg_server, Pid}).
 
 task_over(Name, Tid) ->
     spawn(?MODULE, delete_task, [Tid, Name]),
-    gen_server:cast(?SERVER, {task_over, Tid}).
+    gen_server2:cast(?SERVER, {task_over, Tid}).
 
 delete_task(Tid, Name) ->
     ets:delete(?ETS_NAME_TASK_INDEX, Name),
     ets:delete(Tid, Name).
 
 servers_info() ->
-    gen_server:call(?SERVER, servers_info).
+    gen_server2:call(?SERVER, servers_info).
 
 %%%===================================================================
-%%% gen_server callbacks
+%%% gen_server2 callbacks
 %%%===================================================================
 
 init([]) ->

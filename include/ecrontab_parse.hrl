@@ -6,6 +6,14 @@
 
 -define(SPEC_FIELD_ANY,   any).
 
+-define(POS_YEAR,   #spec.year).
+-define(POS_MONTH,  #spec.month).
+-define(POS_DAY,    #spec.day).
+-define(POS_WEEK,   #spec.week).
+-define(POS_HOUR,   #spec.hour).
+-define(POS_MINUTE, #spec.minute).
+-define(POS_SECOND, #spec.second).
+
 %% ====================================================================
 
 -record(spec_field, {

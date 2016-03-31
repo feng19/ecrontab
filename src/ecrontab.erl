@@ -86,15 +86,25 @@ app_performance_test(Count,Secs) when Secs > 0 andalso Secs < 60 ->
             none
     end,
     Datetime = erlang:localtime(),
-    SecList = app_performance_test_get_sec_list(Secs,Datetime,[]),
-    [{ok, Name} = ecrontab:add(Name,{'*','*','*','*','*','*',SecList},fun() -> ok end) ||
-        Name <- lists:seq(1,Count)],
-    io:format("add spec ok~n"),
+    SecList = app_performance_test_get_sec_list(5,Datetime,[]),
+    [begin
+        {ok, Name} = ecrontab:add(Name,{'*','*','*','*','*','*',SecList},fun() -> ok end),
+        Self ! ok
+    end || Name <- lists:seq(1,Count)],
+    loop_wait(Count),
+    io:format("add spec ok"),
     timer:sleep(Secs*1000),
     ecrontab:stop(),
     eprof:stop_profiling(),
     eprof:analyze(),
     eprof:stop().
+
+loop_wait(0) -> ok;
+loop_wait(Count) ->
+    receive
+        ok ->
+            loop_wait(Count-1)
+    end.
 
 app_performance_test_get_sec_list(0,_,List) ->
     List;

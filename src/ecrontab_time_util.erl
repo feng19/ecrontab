@@ -1,4 +1,5 @@
 -module(ecrontab_time_util).
+-include("ecrontab_parse.hrl").
 -export([
     timestamp/0,
     
@@ -58,19 +59,19 @@ timestamp_to_datetime(Timestamp) ->
 
 %% ====================================================================
 
-get_type_range(year) ->
+get_type_range(?POS_YEAR) ->
     {error, year_range};
-get_type_range(month) ->
+get_type_range(?POS_MONTH) ->
     {ok, {1, 12}};
-get_type_range(day) ->
+get_type_range(?POS_DAY) ->
     {ok, {1, 31}};
-get_type_range(week) ->
+get_type_range(?POS_WEEK) ->
     {ok, {1, 7}};
-get_type_range(hour) ->
+get_type_range(?POS_HOUR) ->
     {ok, {0, 23}};
-get_type_range(minute) ->
+get_type_range(?POS_MINUTE) ->
     {ok, {0, 59}};
-get_type_range(second) ->
+get_type_range(?POS_SECOND) ->
     {ok, {0, 59}}.
 
 
@@ -295,17 +296,17 @@ get_datetime_second({_,{_,_,Value}}) ->
     Value.
 
 %% ====================================================================
-get_datetime_by_type(year,{{Value,_,_},_}) ->
+get_datetime_by_type(?POS_YEAR,{{Value,_,_},_}) ->
     Value;
-get_datetime_by_type(month,{{_,Value,_},_}) ->
+get_datetime_by_type(?POS_MONTH,{{_,Value,_},_}) ->
     Value;
-get_datetime_by_type(day,{{_,_,Value},_}) ->
+get_datetime_by_type(?POS_DAY,{{_,_,Value},_}) ->
     Value;
-get_datetime_by_type(week,{Date,_}) ->
+get_datetime_by_type(?POS_WEEK,{Date,_}) ->
     calendar:day_of_the_week(Date);
-get_datetime_by_type(hour,{_,{Value,_,_}}) ->
+get_datetime_by_type(?POS_HOUR,{_,{Value,_,_}}) ->
     Value;
-get_datetime_by_type(minute,{_,{_,Value,_}}) ->
+get_datetime_by_type(?POS_MINUTE,{_,{_,Value,_}}) ->
     Value;
-get_datetime_by_type(second,{_,{_,_,Value}}) ->
+get_datetime_by_type(?POS_SECOND,{_,{_,_,Value}}) ->
     Value.

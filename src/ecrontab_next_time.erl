@@ -118,7 +118,7 @@ next_time_year(#spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = Year}, Month, Da
     end;
 next_time_year(#spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = List}, Month, Day, Week, Hour, Minute, Second, NowDatetime) ->
     NowYear = ecrontab_time_util:get_datetime_year(NowDatetime),
-    case lists:member(NowYear, List) of
+    case ordsets:is_element(NowYear, List) of
         true ->
             case next_time_month(NowYear, Month, Day, Week, Hour, Minute, Second, NowDatetime) of
                 false ->
@@ -171,7 +171,7 @@ next_time_month(Year, #spec_field{type = ?SPEC_FIELD_TYPE_NUM,value = Month}, Da
 next_time_month(Year, #spec_field{type = ?SPEC_FIELD_TYPE_LIST,value = List}, Day, Week, Hour, Minute, Second, NowDatetime) ->
     case NowDatetime of
         {{Year,NowMonth,_},_} ->
-            case lists:member(NowMonth, List) of
+            case ordsets:is_element(NowMonth, List) of
                 true ->
                     case next_time_day_or_week(Year, NowMonth, Day, Week, Hour, Minute, Second, NowDatetime) of
                         false ->
@@ -272,7 +272,7 @@ next_time_day(Year, Month, #spec_field{type = ?SPEC_FIELD_TYPE_NUM,value = Day},
 next_time_day(Year, Month, #spec_field{type = ?SPEC_FIELD_TYPE_LIST,value = List}, Hour, Minute, Second, NowDatetime) ->
     case NowDatetime of
         {{Year,Month,NowDay}=NowDate,_} ->
-            case lists:member(NowDay, List) of
+            case ordsets:is_element(NowDay, List) of
                 true ->
                     case next_time_hour(NowDate, Hour, Minute, Second, NowDatetime) of
                         false ->
@@ -408,7 +408,7 @@ get_date_week_list(Year, Month, Day, LastDay, Week) ->
 next_time_week_list([], _, _, _, _, _) ->
     false;
 next_time_week_list([{Date,Week}| DateWeekList], List, Hour, Minute, Second, NowDatetime) ->
-    case lists:member(Week, List) of
+    case ordsets:is_element(Week, List) of
         true ->
             case next_time_hour(Date, Hour, Minute, Second, NowDatetime) of
                 false ->
@@ -460,7 +460,7 @@ next_time_hour(Date, #spec_field{type = ?SPEC_FIELD_TYPE_NUM,value = Hour}, Minu
 next_time_hour(Date, #spec_field{type = ?SPEC_FIELD_TYPE_LIST,value = List}, Minute, Second, NowDatetime) ->
     case NowDatetime of
         {Date,{NowHour,_,_}} ->
-            case lists:member(NowHour, List) of
+            case ordsets:is_element(NowHour, List) of
                 true ->
                     case next_time_minute(Date, NowHour, Minute, Second, NowDatetime) of
                         false ->
@@ -527,7 +527,7 @@ next_time_minute(Date, Hour, #spec_field{type = ?SPEC_FIELD_TYPE_NUM,value = Min
 next_time_minute(Date, Hour, #spec_field{type = ?SPEC_FIELD_TYPE_LIST,value = List}, Second, NowDatetime) ->
     case NowDatetime of
         {Date,{Hour,NowMinute,_}} ->
-            case lists:member(NowMinute,List) of
+            case ordsets:is_element(NowMinute,List) of
                 true ->
                     case next_time_second(Date, Hour, NowMinute, Second, NowDatetime) of
                         false ->

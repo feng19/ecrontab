@@ -36,11 +36,8 @@ parse_spec(Year, Month, Day, Week, Hour, Minute, Second) ->
 -spec parse_spec(Year :: any(), Month :: any(), Day :: any(), Week :: any(),
     Hour :: any(), Minute :: any(), Second :: any()) -> {ok, spec()}|{error, any()}.
 parse_spec(Year, Month, Day, Week, Hour, Minute, Second, Options) ->
-    List = [{year, Year}, {month, Month}, {day, Day}, {week, Week},
-            {hour, Hour}, {minute, Minute},{second, Second}],
-    case validate_spec(List) of
-        {ok, NewList} ->
-            Spec0 = list_to_tuple([spec,undefined,undefined|NewList]),
+    case validate_spec([Year, Month, Day, Week, Hour, Minute, Second]) of
+        {ok, Spec0} ->
             Spec = get_spec_type(Spec0),
             case proplists:get_value(filter_over_time, Options) of
                 undefined ->
@@ -56,16 +53,32 @@ parse_spec(Year, Month, Day, Week, Hour, Minute, Second, Options) ->
     end.
 
 validate_spec(Spec) ->
-    validate_spec(Spec, []).
-validate_spec([{Type,Value}|T], Acc) ->
-    case parse_spec_field(Value, Type) of
+    validate_spec(Spec, ?POS_YEAR, #spec{}).
+validate_spec([Value|T], Pos, Spec) ->
+    case parse_spec_field(Value, Pos) of
         {ok, SpecField} ->
-            validate_spec(T, [SpecField|Acc]);
+            NewSpec = erlang:setelement(Pos, Spec, SpecField),
+            validate_spec(T, Pos+1, NewSpec);
         {error, Err} ->
-            {error, {Type, Err}}
+            {error, {pos2name(Pos), Err}}
     end;
-validate_spec([], Acc) ->
-    {ok, lists:reverse(Acc)}.
+validate_spec([], _, Acc) ->
+    {ok, Acc}.
+
+pos2name(?POS_YEAR) ->
+    year;
+pos2name(?POS_MONTH) ->
+    month;
+pos2name(?POS_DAY) ->
+    day;
+pos2name(?POS_WEEK) ->
+    week;
+pos2name(?POS_HOUR) ->
+    hour;
+pos2name(?POS_MINUTE) ->
+    minute;
+pos2name(?POS_SECOND) ->
+    second.
 
 %% ====================================================================
 %% parse_spec_field
@@ -109,7 +122,7 @@ parse_spec_field_other(Value0, Type) ->
 parse_list([], _Type) ->
     {error, empty_list};
 parse_list(List, Type) ->
-    parse_list(lists:usort(List), Type, []).
+    parse_list(List, Type, []).
 
 parse_list([H|T], Type, Acc) ->
     case parse_spec_field(H, Type) of
@@ -117,35 +130,21 @@ parse_list([H|T], Type, Acc) ->
             {error, list_any};
         {ok,#spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL}} ->
             {error, list_interval};
-        {ok,Value} ->
+        {ok,#spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = Value}} ->
             parse_list(T, Type, [Value|Acc]);
+        {ok,#spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = Value}} ->
+            parse_list(T, Type, Value ++ Acc);
         Err ->
             Err
     end;
-parse_list([], Type, Acc) ->
-    {ok, List} = filter_list_overlap(Acc),
-    list_single(Type, List).
+parse_list([], _Type, Acc) ->
+    List = ordsets:from_list(Acc),
+    list_single(List).
 
-list_single(_, [Value]) ->
+list_single([Value]) ->
     {ok, #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = Value}};
-list_single(_, List) ->
+list_single(List) ->
     {ok, #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = List}}.
-
-filter_list_overlap(List) ->
-    {ok, NewList} = filter_list_overlap_do(List,[]),
-    {ok, lists:usort(NewList)}.
-
-filter_list_overlap_do([],ListAcc) ->
-    {ok, ListAcc};
-filter_list_overlap_do([SpecField|List],Acc) ->
-    case SpecField#spec_field.type of
-        ?SPEC_FIELD_TYPE_NUM ->
-            NewAcc = [SpecField#spec_field.value|Acc],
-            filter_list_overlap_do(List,NewAcc);
-        ?SPEC_FIELD_TYPE_LIST ->
-            NewAcc = SpecField#spec_field.value ++ Acc,
-            filter_list_overlap_do(List,NewAcc)
-    end.
 
 %% ====================================================================
 %% parse interval and range binary:
@@ -207,11 +206,11 @@ parse_interval_do(Type, First0, Last0, Step) ->
             case validate_value(Type, Last0) of
                 {ok, Last} when First=<Last ->
                     List = get_list_by_range(First, Last, Step),
-                    list_single(Type, lists:usort(List));
+                    list_single(lists:usort(List));
                 {ok, Last} -> % First > Last
                     case get_list_by_range(Type, First, Last, Step) of
                         {ok, List} ->
-                            list_single(Type, lists:usort(List));
+                            list_single(lists:usort(List));
                         Err ->
                             Err
                     end;
@@ -224,7 +223,7 @@ parse_interval_do(Type, First0, Last0, Step) ->
 
 parse_interval_one(Type) ->
     case Type of
-        year ->
+        ?POS_YEAR ->
             {ok, #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL,
                              value = 1}};
         _ ->
@@ -233,7 +232,7 @@ parse_interval_one(Type) ->
                              value = lists:seq(Min,Max)}}
     end.
 
-parse_interval_any(year, IntervalBin) ->
+parse_interval_any(?POS_YEAR, IntervalBin) ->
     case check_interval_bin(IntervalBin) of
         {ok, Interval} ->
             {ok, #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL,
@@ -246,7 +245,7 @@ parse_interval_any(Type, IntervalBin) ->
         {ok, Interval} ->
             {ok, {Min,Max}} = ecrontab_time_util:get_type_range(Type),
             List = get_list_by_range(Min, Max, Interval),
-            list_single(Type, lists:usort(List));
+            list_single(lists:usort(List));
         Err ->
             Err
     end.
@@ -314,19 +313,19 @@ validate_value(_Type, "*") ->
     {error, any};
 validate_value(_Type, <<"*">>) ->
     {error, any};
-validate_value(year, Value) ->
+validate_value(?POS_YEAR, Value) ->
     ecrontab_time_util:validate_year(Value);
-validate_value(month, Value) ->
+validate_value(?POS_MONTH, Value) ->
     ecrontab_time_util:validate_month(Value);
-validate_value(day, Value) ->
+validate_value(?POS_DAY, Value) ->
     ecrontab_time_util:validate_day(Value);
-validate_value(hour, Value) ->
+validate_value(?POS_HOUR, Value) ->
     ecrontab_time_util:validate_hour(Value);
-validate_value(week, Value) ->
+validate_value(?POS_WEEK, Value) ->
     ecrontab_time_util:validate_week(Value);
-validate_value(minute, Value) ->
+validate_value(?POS_MINUTE, Value) ->
     ecrontab_time_util:validate_minute(Value);
-validate_value(second, Value) ->
+validate_value(?POS_SECOND, Value) ->
     ecrontab_time_util:validate_second(Value).
 
 
@@ -340,7 +339,7 @@ filter_over_time(Spec, NowDatetime) ->
                 true ->
                     {ok, Spec}
             end;
-        ?SPEC_TYPE_ONLY_ONE when Spec#spec.value==#spec.year ->
+        ?SPEC_TYPE_ONLY_ONE when Spec#spec.value==?POS_YEAR ->
             filter_over_time_year(Spec, NowDatetime);
         ?SPEC_TYPE_NORMAL ->
             filter_over_time_year(Spec, NowDatetime);
@@ -361,7 +360,7 @@ filter_over_time_year(Spec, NowDatetime) ->
             end;
         ?SPEC_FIELD_TYPE_LIST ->
             NewValue = filter_less_then(NowYear,SpecField#spec_field.value),
-            {ok, NewSpecField} = list_single(year,NewValue),
+            {ok, NewSpecField} = list_single(NewValue),
             NewSpec = get_spec_type(Spec#spec{year = NewSpecField}),
             {ok, NewSpec};
         _ ->
@@ -375,9 +374,7 @@ filter_less_then(_,Ordsets) ->
 
 get_spec_type(#spec{year = Year, month = Month, day = Day, week = Week,
                     hour = Hour, minute = Minute, second = Second} = Spec) ->
-    {SpecType, SpecTypeValue} = get_spec_type(Year, Month, Day, Week, Hour, Minute, Second),
-    Spec#spec{type = SpecType, value = SpecTypeValue}.
-get_spec_type(Year, Month, Day, Week, Hour, Minute, Second) ->
+    {SpecType, SpecTypeValue} =
     case Year of
         #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL, value = Interval} ->
             {?SPEC_TYPE_INTERVAL_YEAR, Interval};
@@ -387,65 +384,40 @@ get_spec_type(Year, Month, Day, Week, Hour, Minute, Second) ->
                 #stat_spec_type{type_any_count = 7} ->
                     {?SPEC_TYPE_EVERY_SECOND, none};
                 #stat_spec_type{type_any_count = 1,type_num_count = 6} ->
-                    is_type_timestamp(List);
+                    case Spec#spec.week#spec_field.type of
+                        ?SPEC_FIELD_TYPE_ANY ->
+                            Datatime = {
+                                {Year#spec_field.value, Month#spec_field.value, Day#spec_field.value},
+                                {Hour#spec_field.value, Minute#spec_field.value, Second#spec_field.value}
+                            },
+                            Seconds = calendar:datetime_to_gregorian_seconds(Datatime),
+                            {?SPEC_TYPE_SECONDS, Seconds};
+                        _ ->
+                            {?SPEC_TYPE_NORMAL, none}
+                    end;
                 #stat_spec_type{type_any_count = 6} ->
-                    only_one_value(List);
+                    Pos = get_only_one_pos(List),
+                    {?SPEC_TYPE_ONLY_ONE, Pos};
                 _ ->
                     {?SPEC_TYPE_NORMAL, none}
             end
-    end.
+    end,
+    Spec#spec{type = SpecType, value = SpecTypeValue}.
 
 stat_spec_type(List) ->
-    lists:foldl(fun stat_spec_type_do/2, #stat_spec_type{}, List).
+    stat_spec_type(List, #stat_spec_type{}).
+stat_spec_type([#spec_field{type=?SPEC_FIELD_TYPE_ANY}|List],Stat) ->
+    stat_spec_type(List, Stat#stat_spec_type{type_any_count=Stat#stat_spec_type.type_any_count+1});
+stat_spec_type([#spec_field{type=?SPEC_FIELD_TYPE_NUM}|List],Stat) ->
+    stat_spec_type(List, Stat#stat_spec_type{type_num_count=Stat#stat_spec_type.type_num_count+1});
+stat_spec_type([#spec_field{type=?SPEC_FIELD_TYPE_LIST}|List],Stat) ->
+    stat_spec_type(List, Stat#stat_spec_type{type_list_count=Stat#stat_spec_type.type_list_count+1});
+stat_spec_type([], Stat) ->
+    Stat.
 
-stat_spec_type_do(#spec_field{type=?SPEC_FIELD_TYPE_ANY},Stat) ->
-    Stat#stat_spec_type{type_any_count=Stat#stat_spec_type.type_any_count+1};
-stat_spec_type_do(#spec_field{type=?SPEC_FIELD_TYPE_NUM},Stat) ->
-    Stat#stat_spec_type{type_num_count=Stat#stat_spec_type.type_num_count+1};
-stat_spec_type_do(#spec_field{type=?SPEC_FIELD_TYPE_LIST},Stat) ->
-    Stat#stat_spec_type{type_list_count=Stat#stat_spec_type.type_list_count+1}.
-
-only_one_value([_SpecField, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}]) ->
-    {?SPEC_TYPE_ONLY_ONE, #spec.year};
-only_one_value([#spec_field{type=?SPEC_FIELD_TYPE_ANY}, _SpecField,
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}]) ->
-    {?SPEC_TYPE_ONLY_ONE, #spec.month};
-only_one_value([#spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                _SpecField, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}]) ->
-    {?SPEC_TYPE_ONLY_ONE, #spec.day};
-only_one_value([#spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, _SpecField,
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}]) ->
-    {?SPEC_TYPE_ONLY_ONE, #spec.week};
-only_one_value([#spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                _SpecField, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}]) ->
-    {?SPEC_TYPE_ONLY_ONE, #spec.hour};
-only_one_value([#spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, _SpecField,
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}]) ->
-    {?SPEC_TYPE_ONLY_ONE, #spec.minute};
-only_one_value([#spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                #spec_field{type=?SPEC_FIELD_TYPE_ANY}, #spec_field{type=?SPEC_FIELD_TYPE_ANY},
-                _SpecField]) ->
-    {?SPEC_TYPE_ONLY_ONE, #spec.second}.
-
-is_type_timestamp([#spec_field{value=Year}, #spec_field{value=Month},
-             #spec_field{value=Day}, #spec_field{type=?SPEC_FIELD_TYPE_ANY}, 
-             #spec_field{value=Hour}, #spec_field{value=Minute},
-             #spec_field{value=Second}]) ->
-    Seconds = calendar:datetime_to_gregorian_seconds({{Year, Month, Day}, {Hour, Minute, Second}}),
-    {?SPEC_TYPE_SECONDS, Seconds};
-is_type_timestamp(_) ->
-    {?SPEC_TYPE_NORMAL, none}.
+get_only_one_pos(List) ->
+    get_only_one_pos(List, ?POS_YEAR).
+get_only_one_pos([#spec_field{type=?SPEC_FIELD_TYPE_ANY}|List],Pos) ->
+    get_only_one_pos(List,Pos+1);
+get_only_one_pos([_SpecField|_],Pos) ->
+    Pos.

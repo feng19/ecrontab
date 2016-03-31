@@ -9,7 +9,7 @@ all() ->
     [
         {group, server},
         {group, next_sec_tasks},
-        {group, check_servers},
+%%        {group, check_servers},
         {group, add_tasks},
         remove_tasks
     ].

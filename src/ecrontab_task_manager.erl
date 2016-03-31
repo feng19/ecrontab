@@ -1,5 +1,5 @@
 -module(ecrontab_task_manager).
--behaviour(gen_server).
+-behaviour(gen_server2).
 -include("ecrontab.hrl").
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -121,7 +121,7 @@ handle_cast({unreg_server, Tid}, State) ->
             UnliveServers = [Server#server{pid = undefined}|State#state.unlive_servers],
             {noreply, State#state{servers = Servers2,unlive_servers = UnliveServers}}
     end;
-handle_cast({task_over, Tid}, State) ->%todo handle large msg
+handle_cast({task_over, Tid}, State) ->
     NewState =
     case lists:keytake(Tid, #server.tid, State#state.servers) of
         {value, Server, Servers0} ->
@@ -149,8 +149,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 new_server_ets(N) ->
-    ets:new(erlang:binary_to_atom(<<"ets_tasks_",(integer_to_binary(N))/binary>>, utf8),
-        [public,{keypos,#task.name},{write_concurrency, true},{read_concurrency, true}]).
+    EtsName = erlang:binary_to_atom(<<"ets_tasks_",(integer_to_binary(N))/binary>>, utf8),
+    ets:new(EtsName, [public,{keypos,#task.name},{write_concurrency, true},{read_concurrency, true}]).
 
 add_server(E, [H|Es]) when E#server.task_count > H#server.task_count -> [H|add_server(E, Es)];
 add_server(E, [H|_]=Set) when E#server.task_count =< H#server.task_count -> [E|Set];

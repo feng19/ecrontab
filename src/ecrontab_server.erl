@@ -27,10 +27,15 @@ min_server_count() ->
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
-add(Pid, Task) ->%todo catch
-    gen_server:call(Pid, {add, Task}).
+add(Pid, Task) ->
+    try
+        gen_server:call(Pid, {add, Task})
+    catch
+        {'EXIT', Reason} ->
+            {error, Reason}
+    end.
 
-remove(Pid, Task) ->%todo catch
+remove(Pid, Task) ->
     gen_server:cast(Pid, {remove, Task}).
 
 %%%===================================================================

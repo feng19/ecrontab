@@ -53,32 +53,25 @@ parse_spec(Year, Month, Day, Week, Hour, Minute, Second, Options) ->
     end.
 
 validate_spec(Spec) ->
-    validate_spec(Spec, ?POS_YEAR, #spec{}).
+    validate_spec(Spec, ?POS_YEAR, []).
 validate_spec([Value|T], Pos, Spec) ->
     case parse_spec_field(Value, Pos) of
         {ok, SpecField} ->
-            NewSpec = erlang:setelement(Pos, Spec, SpecField),
-            validate_spec(T, Pos+1, NewSpec);
+%%            NewSpec = erlang:setelement(Pos, Spec, SpecField),
+            validate_spec(T, Pos+1, [SpecField|Spec]);
         {error, Err} ->
             {error, {pos2name(Pos), Err}}
     end;
-validate_spec([], _, Acc) ->
-    {ok, Acc}.
+validate_spec([], _, [Second, Minute, Hour, Week, Day, Month, Year]) ->
+    {ok, #spec{year = Year, month = Month, day = Day, week = Week, hour = Hour, minute = Minute, second = Second}}.
 
-pos2name(?POS_YEAR) ->
-    year;
-pos2name(?POS_MONTH) ->
-    month;
-pos2name(?POS_DAY) ->
-    day;
-pos2name(?POS_WEEK) ->
-    week;
-pos2name(?POS_HOUR) ->
-    hour;
-pos2name(?POS_MINUTE) ->
-    minute;
-pos2name(?POS_SECOND) ->
-    second.
+pos2name(?POS_YEAR) ->      year;
+pos2name(?POS_MONTH) ->     month;
+pos2name(?POS_DAY) ->       day;
+pos2name(?POS_WEEK) ->      week;
+pos2name(?POS_HOUR) ->      hour;
+pos2name(?POS_MINUTE) ->    minute;
+pos2name(?POS_SECOND) ->    second.
 
 %% ====================================================================
 %% parse_spec_field

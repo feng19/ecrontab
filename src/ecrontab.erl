@@ -114,7 +114,7 @@ app_performance_test(Count,Secs) when Secs > 0 andalso Secs < 60 ->
     {ok, Spec} = ecrontab_parse:parse_spec({'*','*','*','*','*','*',SecList},[]),
     Fun = fun() -> ok end,
     [begin
-        {ok, Name} = ecrontab:add_spec(Name,Spec,Fun,Datetime,[]),
+        {ok, Name} = ecrontab:add_spec(Name,Spec,Fun,Datetime,[])
     end || Name <- lists:seq(1,Count)],
     io:format("add spec ok"),
     timer:sleep(Secs*1000),

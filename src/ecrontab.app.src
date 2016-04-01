@@ -1,9 +1,13 @@
 {application, ecrontab,
  [
-  {description, ""},
-  {vsn, "0.1.0"},
+  {description, "crontab for erlang"},
+  {vsn, "0.2.0"},
   {registered, []},
   {applications, [kernel,stdlib]},
   {mod,{ecrontab_app,[]}},
-  {modules, []}
+  {modules, []},
+
+  {maintainers, ["feng19"]},
+  {licenses, ["MIT"]},
+  {links, [{"GitHub", "https://github.com/feng19/ecrontab"}]}
  ]}.

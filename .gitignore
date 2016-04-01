@@ -4,9 +4,7 @@ eunit.coverdata
 ct.cover.spec
 rebar.lock
 deps
-*.o
 *.beam
-*.plt
 erl_crash.dump
 ebin
 rel

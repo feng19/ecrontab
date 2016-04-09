@@ -1,5 +1,7 @@
 ecrontab
 ========
+ [Travis-CI](https://travis-ci.org/feng19/ecrontab)::
+ [![Build Status](https://secure.travis-ci.org/feng19/ecrontab.svg)](https://travis-ci.org/feng19/ecrontab)
 
 ## Overview ##
 

@@ -72,6 +72,7 @@ servers_info() ->
 
 init([]) ->
     process_flag(trap_exit, true),
+    process_flag(priority, high),
     ets:new(?ETS_NAME_TASK_INDEX,[
         public,named_table,
         {keypos,#task_index.name},
@@ -79,14 +80,14 @@ init([]) ->
         {read_concurrency, true}]),
     {ok, #state{}}.
 
-handle_call({add, Task}, _From, State) ->
+handle_call({add, Task}, _From, State) ->%% todo remove this
     case do_add(Task, State) of
         {ok, NewState} ->
             {reply, ok, NewState};
         Reply ->
             {reply, Reply, State}
     end;
-handle_call({remove, {Name, Options}}, _From, State) ->
+handle_call({remove, {Name, Options}}, _From, State) ->%% todo remove this
     case do_remove(Name, Options, State) of
         {ok, NewState} ->
             {reply, ok, NewState};
@@ -156,7 +157,7 @@ add_server(E, [H|Es]) when E#server.task_count > H#server.task_count -> [H|add_s
 add_server(E, [H|_]=Set) when E#server.task_count =< H#server.task_count -> [E|Set];
 add_server(E, []) -> [E].
 
-do_add(Task, State) ->
+do_add(Task, State) ->%% todo remove this
     case State#state.servers of
         [Server|Servers] when Server#server.task_count < ?ONE_PROCESS_MAX_TASKS_COUNT ->
             Tid = Server#server.tid,
@@ -179,7 +180,7 @@ do_add(Task, State) ->
             {error, no_server_use}
     end.
 
-do_remove(Name, _Options, State) ->
+do_remove(Name, _Options, State) ->%% todo remove this
     case ets:lookup(?ETS_NAME_TASK_INDEX, Name) of
         [TaskIndex] ->
             ets:delete(?ETS_NAME_TASK_INDEX, Name),

@@ -17,12 +17,16 @@ crontab for erlang
 * start ecrontab:
 ```
 ecrontab:start().
+```
 
+* add worker
+```
+ecrontab:add_worker(worker_name).
 ```
 
 * add a undefined name task what can say hello every minute
 ```
-ecrontab:add(undefined, {'*','*','*','*','*'}, fun() -> io:format("every minute hello!~n") end).
+ecrontab:add(worker_name, {'*','*','*','*','*'}, fun() -> io:format("every minute hello!~n") end).
 ```
 
 * add a task what can say hello every second 5

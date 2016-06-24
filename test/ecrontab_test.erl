@@ -10,17 +10,17 @@ all_test_() ->
 
 init() ->
     ecrontab:start(),
-    ecrontab:add_worker(1).
+    ecrontab:add_worker(worker_name).
 
 app_test_list(_) ->
     Fun = fun() -> ok end,
     [
-        ?_assertEqual(ok, ecrontab:add(1, {'*','*','*','*','*','*','*'}, Fun)),
-        ?_assertEqual(ok, ecrontab:add(1, {'*','*','*','*','*','*','*'}, Fun)),
-        ?_assertEqual(ok, ecrontab:add(1, {'*','*','*','*','*','*','*'}, Fun)),
-        ?_assertEqual(ok, ecrontab:add(1, {'*','*','*','*','*','*','*'}, Fun)),
-        ?_assertEqual(ok, ecrontab:add(1, {'*','*','*','*','*','*','*'}, Fun)),
-        ?_assertEqual(ok, ecrontab:add(1, {'*','*','*','*','*','*','*'}, Fun)),
-        ?_assertEqual(ok, ecrontab:add(1, {'*','*','*','*','*','*','*'}, Fun)),
-        ?_assertEqual(ok, ecrontab:add(1, {'*','*','*','*','*','*','*'}, Fun))
+        ?_assertEqual(ok, ecrontab:add(worker_name, {'*','*','*','*','*','*','*'}, Fun)),
+        ?_assertEqual(ok, ecrontab:add(worker_name, {'*','*','*','*','*','*','*'}, Fun)),
+        ?_assertEqual(ok, ecrontab:add(worker_name, {'*','*','*','*','*','*','*'}, Fun)),
+        ?_assertEqual(ok, ecrontab:add(worker_name, {'*','*','*','*','*','*','*'}, Fun)),
+        ?_assertEqual(ok, ecrontab:add(worker_name, {'*','*','*','*','*','*','*'}, Fun)),
+        ?_assertEqual(ok, ecrontab:add(worker_name, {'*','*','*','*','*','*','*'}, Fun)),
+        ?_assertEqual(ok, ecrontab:add(worker_name, {'*','*','*','*','*','*','*'}, Fun)),
+        ?_assertEqual(ok, ecrontab:add(worker_name, {'*','*','*','*','*','*','*'}, Fun))
     ].

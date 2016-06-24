@@ -27,10 +27,8 @@ init([]) ->
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
     ChildSpecs = [
-        {ecrontab_server_sup, {ecrontab_server_sup, start_link, []},
-            permanent, 2000, supervisor, [ecrontab_server_sup]},
-        {ecrontab_task_manager, {ecrontab_task_manager, start_link, []},
-            permanent, 2000, worker, [ecrontab_task_manager]},
+        {ecrontab_worker_sup, {ecrontab_worker_sup, start_link, []},
+            permanent, 2000, supervisor, [ecrontab_worker_sup]},
         {ecrontab_clock_tick, {ecrontab_clock_tick, start_link, []},
             permanent, 2000, worker, [ecrontab_clock_tick]}
     ],

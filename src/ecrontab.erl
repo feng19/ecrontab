@@ -6,14 +6,14 @@
     stop/0,
     add/3, add/4,
     add_spec/4, add_spec/5,
-    remove/1, remove/2,
-    add_server/0,
-    get_server_count/0
+    worker_list/0,
+    add_worker/1,
+    get_worker_count/0
 ]).
 
 %% for test
 -export([
-    app_performance_test/2,
+    app_performance_test/3,
     parse_spec_performance_test/1,
     next_time_performance_test/1,
     loop_next_time/2, loop_next_time/3,
@@ -34,42 +34,53 @@ stop() ->
 %% API
 %% ====================================================================
 
-add(Name, Spec, MFA) ->
-    add(Name, Spec, MFA, []).
-add(Name, Spec, MFA, Options) when is_record(Spec, spec) ->
-    do_add(Name, Spec, MFA, erlang:localtime(), Options);
-add(Name, Spec0, MFA, Options) ->
+add(Worker, Spec, MFA) ->
+    add(Worker, Spec, MFA, []).
+add(Worker, Spec, MFA, Options) when is_record(Spec, spec) ->
+    add_spec(Worker, Spec, MFA, Options);
+add(Worker, Spec0, MFA, Options) ->
     NowDatetime = erlang:localtime(),
     case ecrontab_parse:parse_spec(Spec0, [{filter_over_time,NowDatetime}]) of
         {ok, Spec} ->
-            do_add(Name, Spec, MFA, NowDatetime, Options);
+            do_add(Worker, Spec, MFA, NowDatetime, Options);
         Err ->
             Err
     end.
 
-add_spec(Name, Spec, MFA, Options) ->
-    add_spec(Name, Spec, MFA, erlang:localtime(), Options).
-add_spec(Name, Spec, MFA, NowDatetime, Options) when is_record(Spec, spec) ->
-    do_add(Name, Spec, MFA, NowDatetime, Options).
+add_spec(Worker, Spec, MFA, Options) ->
+    add_spec(Worker, Spec, MFA, erlang:localtime(), Options).
+add_spec(Worker, Spec, MFA, NowDatetime, Options) when is_record(Spec, spec) ->
+    do_add(Worker, Spec, MFA, NowDatetime, Options).
 
-remove(Name) ->
-    remove(Name, []).
-remove(Name, Options) ->
-    ecrontab_task_manager:remove(Name, Options).
+worker_list() ->
+    ets:tab2list(?ETS_WORKER_NAME_INDEX).
 
-add_server() ->
-    ecrontab_server_sup:start_child().
+add_worker(Args) when is_list(Args) ->
+    ecrontab_worker_sup:start_child(Args);
+add_worker(WorkerName) ->
+    ecrontab_worker_sup:start_child([WorkerName]).
 
-get_server_count() ->
-    proplists:get_value(workers, supervisor:count_children(ecrontab_server_sup)).
+get_worker_count() ->
+    proplists:get_value(workers, supervisor:count_children(ecrontab_worker_sup)).
 
 %% ====================================================================
 %% internal API
 %% ====================================================================
 
-do_add(Name, Spec, MFA, NowDatetime, Options) when is_list(Options) ->
+do_add(Worker, Spec, MFA, NowDatetime, Options) when is_list(Options) ->
     check_mfa(MFA),
-    ecrontab_task_manager:add(Name, Spec, MFA, NowDatetime, Options).
+    Task = #task{spec = Spec, mfa = MFA, add_time = NowDatetime, options = Options},
+    do_add(Worker, Task).
+
+do_add(WorkerPid, Task) when is_pid(WorkerPid) ->
+    ecrontab_worker:add(WorkerPid, Task);
+do_add(WorkerName, Task) ->
+    case ets:lookup(?ETS_WORKER_NAME_INDEX, WorkerName) of
+        [{_, WorkerPid}] ->
+            ecrontab_worker:add(WorkerPid, Task);
+        _ ->
+            {error, no_worker}
+    end.
 
 check_mfa(Fun) when is_function(Fun, 0) ->
     true;
@@ -88,34 +99,20 @@ check_mfa(MFA) ->
 %% ====================================================================
 %% app performance test
 %% ====================================================================
-app_performance_test(Count,Secs) when Secs > 0 andalso Secs < 60 ->
+app_performance_test(WorkerCount, Count, Secs) when Secs > 0 andalso Secs < 60 ->
     ecrontab:start(),
     eprof:start(),
     Self = self(),
     eprof:profile([Self]),
-    MaxTaskCount = ecrontab_server:min_server_count() * ?ONE_PROCESS_MAX_TASKS_COUNT,
-    if
-        Count > MaxTaskCount ->
-            AddChildCount0 = (Count - MaxTaskCount) / ?ONE_PROCESS_MAX_TASKS_COUNT,
-            AddChildCount1 = erlang:trunc(AddChildCount0),
-            AddChildCount =
-            case AddChildCount0 - AddChildCount1 == 0 of
-                true ->
-                    AddChildCount1;
-                _ ->
-                    AddChildCount1+1
-            end,
-            [add_server()||_ <- lists:seq(1,AddChildCount)];
-        true ->
-            none
-    end,
+    [add_worker([N, Count]) || N <- lists:seq(1,WorkerCount)],
     Datetime = erlang:localtime(),
     SecList = app_performance_test_get_sec_list(5,Datetime,[]),
     {ok, Spec} = ecrontab_parse:parse_spec({'*','*','*','*','*','*',SecList},[]),
     Fun = fun() -> ok end,
     [begin
-        {ok, Name} = ecrontab:add_spec(Name,Spec,Fun,Datetime,[])
-    end || Name <- lists:seq(1,Count)],
+        [ok = ecrontab:add_spec(WorkerName,Spec,Fun,Datetime,[]) || _ <- lists:seq(1, Count)],
+        ok
+    end || {WorkerName, _WorkerPid} <- worker_list()],
     io:format("add spec ok"),
     timer:sleep(Secs*1000),
     ecrontab:stop(),

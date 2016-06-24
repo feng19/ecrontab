@@ -1,9 +1,9 @@
--module(ecrontab_server_sup).
+-module(ecrontab_worker_sup).
 -behaviour(supervisor).
 
 -export([
     start_link/0,
-    start_child/0,
+    start_child/1,
     init/1
 ]).
 
@@ -11,13 +11,13 @@
 
 %%%===================================================================
 %%% API functions
-%%%===================================================================
+%===================================================================
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-start_child() ->
-    supervisor:start_child(?SERVER, []).
+start_child(Args) ->
+    supervisor:start_child(?SERVER, [Args]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -30,8 +30,8 @@ init([]) ->
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
-    AChild = {ecrontab_server, {ecrontab_server, start_link, []},
-        transient, 2000, worker, [ecrontab_server]},
+    AChild = {ecrontab_worker, {ecrontab_worker, start_link, []},
+        transient, 2000, worker, [ecrontab_worker]},
 
     {ok, {SupFlags, [AChild]}}.
 

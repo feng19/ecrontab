@@ -30,8 +30,8 @@ add(Pid, Task) ->
 %%%===================================================================
 
 init([WorkerName]) ->
-    init([WorkerName,?ONE_PROCESS_MAX_TASKS_COUNT]);
-init([WorkerName,MaxTaskCount]) ->
+    init([WorkerName, ?ONE_PROCESS_MAX_TASKS_COUNT]);
+init([WorkerName, MaxTaskCount]) ->
     case ets:insert_new(?ETS_WORKER_NAME_INDEX, {WorkerName, self()}) of
         true ->
             pg2:join(?GROUP_NAME, self()),

@@ -12,7 +12,7 @@
     type_list_count = 0
 }).
 
--define(DEFAULT_OPTIONS, [{filter_over_time,now}]).
+-define(DEFAULT_OPTIONS, [{filter_over_time, now}]).
 
 %% ====================================================================
 %% parse_spec

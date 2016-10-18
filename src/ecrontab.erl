@@ -84,12 +84,16 @@ do_add(WorkerName, Task) ->
 
 check_mfa(Fun) when is_function(Fun, 0) ->
     true;
-check_mfa({M,F,A}=MFA) when is_atom(M) andalso is_atom(F) andalso is_list(A) ->
-    case erlang:function_exported(M,F,A) of
-        true ->
-            true;
-        false ->
-            exit({error_mfa, MFA})
+check_mfa({M, F, A}=MFA) when is_atom(M) andalso is_atom(F) andalso is_list(A) ->
+    case code:ensure_loaded(M) of
+        {module, M} ->
+            case erlang:function_exported(M, F, A) of
+                true -> true;
+                false ->
+                    exit({error_mfa, MFA})
+            end;
+        Err ->
+            exit({module_not_loaded, M, Err})
     end;
 check_mfa({_Node,M,F,A}) when is_atom(M) andalso is_atom(F) andalso is_list(A) ->
     true;

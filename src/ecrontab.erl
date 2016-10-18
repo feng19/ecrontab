@@ -87,7 +87,8 @@ check_mfa(Fun) when is_function(Fun, 0) ->
 check_mfa({M, F, A}=MFA) when is_atom(M) andalso is_atom(F) andalso is_list(A) ->
     case code:ensure_loaded(M) of
         {module, M} ->
-            case erlang:function_exported(M, F, A) of
+            Arity = length(A),
+            case erlang:function_exported(M, F, Arity) of
                 true -> true;
                 false ->
                     exit({error_mfa, MFA})

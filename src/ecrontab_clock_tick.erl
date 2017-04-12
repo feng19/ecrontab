@@ -23,9 +23,8 @@ start_link() ->
 
 init(_Args) ->
     process_flag(trap_exit, true),
-    Seconds = calendar:datetime_to_gregorian_seconds(erlang:localtime()),
     {ok ,TRef} = ?START_TASK_TIMER,
-    {ok, #state{seconds = Seconds, tref = TRef}}.
+    {ok, #state{seconds = ?TIMESTAMP, tref = TRef}}.
 
 handle_call(_Msg, _From, State) ->
     {reply, noknow, State}.

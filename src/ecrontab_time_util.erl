@@ -1,8 +1,6 @@
 -module(ecrontab_time_util).
 -include("ecrontab_parse.hrl").
 -export([
-    timestamp/0,
-    
     datetime_to_timestamp/1,
     timestamp_to_datetime/1,
     
@@ -38,24 +36,14 @@
 
 %% ====================================================================
 
-%% Constant value of 
-%%     calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}})
--define(SECS_1970, 62167219200).
+%% @doc Translate UNIX timestamp to local datetime.
+timestamp_to_datetime(Seconds) ->
+    erlang:universaltime_to_localtime(erlang:posixtime_to_universaltime(Seconds)).
 
-%% @doc Calculate the current UNIX timestamp (seconds since Jan 1, 1970)
-timestamp() ->
-    Datetime = calendar:universal_time(),
-    calendar:datetime_to_gregorian_seconds(Datetime) - ?SECS_1970.
-
-%% ====================================================================
-
-datetime_to_timestamp(Datetime0) ->
-    Datetime = erlang:localtime_to_universaltime(Datetime0),
-    calendar:datetime_to_gregorian_seconds(Datetime) - ?SECS_1970.
-
-timestamp_to_datetime(Timestamp) ->
-    Datetime = calendar:gregorian_seconds_to_datetime(?SECS_1970 + Timestamp),
-    erlang:universaltime_to_localtime(Datetime).
+%% @doc Translate a local time date to UNIX timestamp
+datetime_to_timestamp(undefined) -> undefined;
+datetime_to_timestamp(DT) ->
+    erlang:universaltime_to_posixtime(erlang:localtime_to_universaltime(DT)).
 
 %% ====================================================================
 

@@ -34,7 +34,7 @@
 }).
 
 -define(SPEC_TYPE_NORMAL,           normal).
--define(SPEC_TYPE_SECONDS,          seconds).
+-define(SPEC_TYPE_TIMESTAMP,        timestamp).
 -define(SPEC_TYPE_EVERY_SECOND,     every_second).
 -define(SPEC_TYPE_INTERVAL_YEAR,    interval_year).
 -define(SPEC_TYPE_ONLY_ONE,         only_one).

@@ -1,4 +1,5 @@
 -module(ecrontab_parse).
+-include("ecrontab.hrl").
 -include("ecrontab_parse.hrl").
 -export([
     parse_spec/1, parse_spec/2,
@@ -324,10 +325,10 @@ validate_value(?POS_SECOND, Value) ->
 
 filter_over_time(Spec, NowDatetime) ->
     case Spec#spec.type of
-        ?SPEC_TYPE_SECONDS ->
-            NowSeconds = calendar:datetime_to_gregorian_seconds(NowDatetime),
+        ?SPEC_TYPE_TIMESTAMP ->
+            Timestamp = ?DATETIME_TO_TIMESTAMP(NowDatetime),
             if
-                NowSeconds > Spec#spec.value ->
+                Timestamp > Spec#spec.value ->
                     {error, time_over};
                 true ->
                     {ok, Spec}
@@ -379,12 +380,12 @@ get_spec_type(#spec{year = Year, month = Month, day = Day, week = Week,
                 #stat_spec_type{type_any_count = 1,type_num_count = 6} ->
                     case Spec#spec.week#spec_field.type of
                         ?SPEC_FIELD_TYPE_ANY ->
-                            Datatime = {
+                            Datetime = {
                                 {Year#spec_field.value, Month#spec_field.value, Day#spec_field.value},
                                 {Hour#spec_field.value, Minute#spec_field.value, Second#spec_field.value}
                             },
-                            Seconds = calendar:datetime_to_gregorian_seconds(Datatime),
-                            {?SPEC_TYPE_SECONDS, Seconds};
+                            Timestamp = ?DATETIME_TO_TIMESTAMP(Datetime),
+                            {?SPEC_TYPE_TIMESTAMP, Timestamp};
                         _ ->
                             {?SPEC_TYPE_NORMAL, none}
                     end;

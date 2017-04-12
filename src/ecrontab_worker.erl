@@ -7,7 +7,7 @@
     add/2
 ]).
 
--record(state, {task_count = 0, max_task_count = 0, now_seconds}).
+-record(state, {name, task_count = 0, max_task_count = 0, now_seconds}).
 -record(server_task, {spec, mfa, options}).
 
 %%%===================================================================
@@ -34,9 +34,9 @@ init([WorkerName]) ->
 init([WorkerName, MaxTaskCount]) ->
     case ets:insert_new(?ETS_WORKER_NAME_INDEX, {WorkerName, self()}) of
         true ->
+            process_flag(trap_exit, true),
             pg2:join(?GROUP_NAME, self()),
-            NowSeconds = calendar:datetime_to_gregorian_seconds(erlang:localtime()),
-            {ok, #state{now_seconds = NowSeconds, max_task_count = MaxTaskCount}};
+            {ok, #state{name = WorkerName, now_seconds = ?TIMESTAMP, max_task_count = MaxTaskCount}};
         false ->
             {stop, duplicate_name}
     end.
@@ -58,12 +58,13 @@ handle_info({ecrontab_tick, Seconds}, State) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
-terminate(_Reason, _State) ->
+terminate(_Reason, State) ->
+    ets:delete(?ETS_WORKER_NAME_INDEX, State#state.name),
     ok.
 
 code_change(_Old, State, _Extra) ->
     {ok, State}.
-    
+
 %% ====================================================================
 %% internal API
 %% ====================================================================
@@ -75,36 +76,36 @@ do_tick(State) ->
         [] ->
             State;
         STasks ->
-            NowDatetime = calendar:gregorian_seconds_to_datetime(State#state.now_seconds),
-            loop_tasks(NowDatetime,STasks,State)
+            NowDatetime = ?TIMESTAMP_TO_DATETIME(State#state.now_seconds),
+            loop_tasks(NowDatetime, STasks, State)
     end.
 
-loop_tasks(_,[],State) ->
+loop_tasks(_, [], State) ->
     State;
-loop_tasks(NowDatetime, [STask|STasks], State) ->
+loop_tasks(NowDatetime, [STask | STasks], State) ->
     do_spawn_task(STask#server_task.mfa),
     case ecrontab_next_time:next_seconds(STask#server_task.spec, NowDatetime) of
         {ok, NextSeconds} ->
-            put_in_list(NextSeconds,STask),
+            put_in_list(NextSeconds, STask),
             loop_tasks(NowDatetime, STasks, State);
         _ ->
-            loop_tasks(NowDatetime, STasks, State#state{task_count = State#state.task_count-1})
+            loop_tasks(NowDatetime, STasks, State#state{task_count = State#state.task_count - 1})
     end.
 
-do_spawn_task({M,F,A}) ->
+do_spawn_task({M, F, A}) ->
     erlang:spawn(M, F, A);
-do_spawn_task({Node,M,F,A}) ->
-    rpc:cast(Node,M,F,A);
+do_spawn_task({Node, M, F, A}) ->
+    rpc:cast(Node, M, F, A);
 do_spawn_task(Fun) ->
     erlang:spawn(Fun).
 
 do_add(State, Task) ->
-    NowDatetime = calendar:gregorian_seconds_to_datetime(State#state.now_seconds),
+    NowDatetime = ?TIMESTAMP_TO_DATETIME(State#state.now_seconds),
     case ecrontab_next_time:next_seconds(Task#task.spec, NowDatetime) of
         {ok, NextSeconds} ->
             STask = task_to_server_task(Task),
-            put_in_list(NextSeconds,STask),
-            {ok, State#state{task_count = State#state.task_count+1}};
+            put_in_list(NextSeconds, STask),
+            {ok, State#state{task_count = State#state.task_count + 1}};
         Err ->
             {Err, State}
     end.
@@ -112,12 +113,12 @@ do_add(State, Task) ->
 task_to_server_task(Task) ->
     #server_task{spec = Task#task.spec, mfa = Task#task.mfa, options = Task#task.options}.
 
-put_in_list(Seconds,STask) ->
+put_in_list(Seconds, STask) ->
     List =
-    case get(Seconds) of
-        undefined ->
-            [STask];
-        List0 ->
-            [STask|List0]
-    end,
+        case get(Seconds) of
+            undefined ->
+                [STask];
+            List0 ->
+                [STask | List0]
+        end,
     put(Seconds, List).

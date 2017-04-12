@@ -1,6 +1,6 @@
 {application,ecrontab,
              [{description,"crontab for erlang"},
-              {vsn,"0.3.1"},
+              {vsn,"0.3.2"},
               {registered,[]},
               {applications,[kernel,stdlib]},
               {mod,{ecrontab_app,[]}},

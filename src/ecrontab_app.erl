@@ -26,17 +26,4 @@ stop(_State) ->
 
 start_more(AllConfig) ->
     Workers = proplists:get_value(workers, AllConfig, []),
-    init_workers(Workers).
-
-init_workers(Workers) ->
-    [init_worker(Worker) || Worker <- Workers].
-
-init_worker({Worker, WorkerTaskList}) ->
-    {ok, WorkerPid} = ecrontab:add_worker(Worker),
-    init_task_list(WorkerPid, WorkerTaskList);
-init_worker({Worker, MaxTaskCount, WorkerTaskList}) ->
-    {ok, WorkerPid} = ecrontab:add_worker([Worker, MaxTaskCount]),
-    init_task_list(WorkerPid, WorkerTaskList).
-
-init_task_list(WorkerPid, WorkerTaskList) ->
-    [ecrontab:add(WorkerPid, Spec, MFA) || {Spec, MFA} <- WorkerTaskList].
+    ecrontab:init_workers(Workers).

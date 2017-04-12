@@ -2,7 +2,6 @@
 cover
 eunit.coverdata
 ct.cover.spec
-rebar.lock
 deps
 *.beam
 erl_crash.dump

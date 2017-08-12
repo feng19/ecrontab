@@ -2,7 +2,7 @@
              [{description,"crontab for erlang"},
               {vsn,"0.4.0"},
               {registered,[]},
-              {applications,[kernel,stdlib]},
+              {applications,[kernel,stdlib,gproc]},
               {mod,{ecrontab_app,[]}},
               {modules,[]},
               {maintainers,["feng19"]},

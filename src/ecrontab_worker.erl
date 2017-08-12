@@ -35,7 +35,7 @@ init([WorkerName, MaxTaskCount]) ->
     case ets:insert_new(?ETS_WORKER_NAME_INDEX, {WorkerName, self()}) of
         true ->
             process_flag(trap_exit, true),
-            pg2:join(?GROUP_NAME, self()),
+            gproc:reg(?GROUP_NAME),
             {ok, #state{name = WorkerName, now_seconds = ?TIMESTAMP, max_task_count = MaxTaskCount}};
         false ->
             {stop, duplicate_name}

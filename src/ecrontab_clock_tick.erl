@@ -23,7 +23,7 @@ start_link() ->
 
 init(_Args) ->
     process_flag(trap_exit, true),
-    {ok ,TRef} = ?START_TASK_TIMER,
+    {ok, TRef} = ?START_TASK_TIMER,
     {ok, #state{seconds = ?TIMESTAMP, tref = TRef}}.
 
 handle_call(_Msg, _From, State) ->
@@ -33,8 +33,8 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info(tick, State) ->
-    Seconds = State#state.seconds+1,
-    send_to_group(Seconds),
+    Seconds = State#state.seconds + 1,
+    gproc:send(?GROUP_NAME, {ecrontab_tick, Seconds}),
     {noreply, #state{seconds = Seconds}};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -49,13 +49,3 @@ code_change(_Old, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-send_to_group(Seconds) ->
-    PidList = pg2:get_members(?GROUP_NAME),
-    loop_send(PidList, Seconds).
-
-loop_send([Pid|PidList], Seconds) ->
-    Pid ! {ecrontab_tick, Seconds},
-    loop_send(PidList, Seconds);
-loop_send([], _) ->
-    ok.

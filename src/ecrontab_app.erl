@@ -10,8 +10,13 @@
 
 start(_StartType, _StartArgs) ->
     %todo mnesia sava tasks
-    pg2:create(?GROUP_NAME),
-    ets:new(?ETS_WORKER_NAME_INDEX, [public,named_table,{keypos,1},{write_concurrency, true},{read_concurrency, true}]),
+    ets:new(?ETS_WORKER_NAME_INDEX, [
+        public,
+        named_table,
+        {keypos, 1},
+        {write_concurrency, true},
+        {read_concurrency, true}
+    ]),
     AllConfig = application:get_all_env(),
     case ecrontab_sup:start_link() of
         {ok, Pid} ->

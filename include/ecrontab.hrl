@@ -1,5 +1,5 @@
 
--define(GROUP_NAME, ecrontab_group).
+-define(GROUP_NAME, {p, l, ecrontab_group}).
 
 -define(ONE_PROCESS_MAX_TASKS_COUNT, 1000).
 

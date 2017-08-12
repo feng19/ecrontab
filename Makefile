@@ -1,14 +1,11 @@
+all: compile test
 
-PROJECT = ecrontab
-#DEPS = lager 
-#dep_lager = git https://github.com/basho/lager master
+.PHONY: co compile test
 
-#ERLC_OPTS += -Ddebug
-#ERLC_OPTS += +debug_info
-ERLC_OPTS += +no_debug_info
-#ERLC_OPTS += +'{parse_transform, lager_transform}'
+## 编译
+co:compile
+compile:
+	rebar3 compile
 
-COVER = true
-
-include erlang.mk
-
+test:
+	rebar3 do eunit, ct, cover

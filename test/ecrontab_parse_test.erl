@@ -1,7 +1,7 @@
 -module(ecrontab_parse_test).
 -include_lib("eunit/include/eunit.hrl").
 -include("ecrontab_parse.hrl").
-
+-include("ecrontab.hrl").
 
 all_test_() ->
     [
@@ -645,7 +645,7 @@ interval_test_list() ->
 timestamp_test_list() ->
     [
         ?_assertEqual(
-            {ok, #spec{type = ?SPEC_TYPE_TIMESTAMP, value = 1459627500,
+            {ok, #spec{type = ?SPEC_TYPE_TIMESTAMP, value = ?DATETIME_TO_TIMESTAMP({{2016, 4, 3}, {4, 5, 0}}),
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 2016},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 3},
@@ -656,7 +656,7 @@ timestamp_test_list() ->
             }},
             ecrontab_parse:parse_spec({2016, 4, 3, '*', 4, 5, 0}, [])),
         ?_assertEqual(
-            {ok, #spec{type = ?SPEC_TYPE_TIMESTAMP, value = 1459627500,
+            {ok, #spec{type = ?SPEC_TYPE_TIMESTAMP, value = ?DATETIME_TO_TIMESTAMP({{2016, 4, 3}, {4, 5, 0}}),
                 year = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 2016},
                 month = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 4},
                 day = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = 3},

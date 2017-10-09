@@ -71,7 +71,8 @@ only_one_test_list(NowDatetime) ->
             {{2016, 3, 9}, {0, 0, 6}}, {{2016, 3, 9}, {0, 0, 7}},
             {{2016, 3, 9}, {0, 0, 8}}, {{2016, 3, 9}, {0, 0, 9}}
         ], next_time_loop_do(Spec4, NowDatetime, 10)),
-        ?_assertEqual({ok, 1457362800}, ecrontab_next_time:next_time(Spec5, NowDatetime, [{return, timestamp}])),
+        ?_assertEqual({ok, ?DATETIME_TO_TIMESTAMP({{2016, 3, 7}, {23, 0, 0}})},
+            ecrontab_next_time:next_time(Spec5, NowDatetime, [{return, timestamp}])),
         ?_assertEqual([
             {{2016, 3, 7}, {23, 0, 0}}, {{2016, 3, 7}, {23, 0, 1}},
             {{2016, 3, 7}, {23, 0, 2}}, {{2016, 3, 7}, {23, 0, 3}},

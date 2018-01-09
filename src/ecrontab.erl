@@ -7,8 +7,9 @@
     init_workers/1,
     init_worker/1,
     init_task_list/2,
-    add/3, add/4,
-    add_spec/4, add_spec/5,
+    add/3, add/4, add/5,
+    add_spec/4, add_spec/5, add_spec/6,
+    del/2,
     worker_list/0,
     add_worker/1,
     stop_worker/1,
@@ -23,6 +24,38 @@
     loop_next_time/2, loop_next_time/3,
     loop_next_time_do/3
 ]).
+
+-export_type([spec_type/0, spec_field_type/0, spec_field_value/0, spec_field/0, spec/0]).
+
+-type spec_type() ::
+    ?SPEC_TYPE_NORMAL |
+    ?SPEC_TYPE_TIMESTAMP |
+    ?SPEC_TYPE_EVERY_SECOND |
+    ?SPEC_TYPE_INTERVAL_YEAR |
+    ?SPEC_TYPE_ONLY_ONE.
+
+-type spec_field_type() ::
+    ?SPEC_FIELD_TYPE_ANY |
+    ?SPEC_FIELD_TYPE_NUM |
+    ?SPEC_FIELD_TYPE_LIST |
+    ?SPEC_FIELD_TYPE_INTERVAL.
+
+-type spec_field_any() :: ?SPEC_FIELD_ANY.
+-type spec_field_num() :: non_neg_integer().
+-type spec_field_list() :: [spec_field_num()].
+-type spec_field_interval() :: non_neg_integer().
+
+-type spec_field_value() ::
+    spec_field_any() |
+    spec_field_num() |
+    spec_field_list() |
+    spec_field_interval().
+
+-type spec_field() :: #spec_field{}.
+
+-type spec() :: #spec{}.
+
+-type add_result() :: ok | {error, Reason :: any()}.
 
 %% ====================================================================
 %% app
@@ -39,18 +72,18 @@ stop() ->
 %% ====================================================================
 
 init_workers([]) -> ok;
-init_workers([Worker | Workers]) ->
-    case init_worker(Worker) of
+init_workers([WorkerSettings | Workers]) ->
+    case init_worker(WorkerSettings) of
         ok ->
             init_workers(Workers);
         Err -> Err
     end.
 
-init_worker({Worker, WorkerTaskList}) ->
-    {ok, WorkerPid} = add_worker(Worker),
+init_worker({WorkerName, WorkerTaskList}) ->
+    {ok, WorkerPid} = add_worker(WorkerName),
     init_task_list(WorkerPid, WorkerTaskList);
-init_worker({Worker, MaxTaskCount, WorkerTaskList}) ->
-    {ok, WorkerPid} = add_worker([Worker, MaxTaskCount]),
+init_worker({WorkerName, MaxTaskCount, WorkerTaskList}) ->
+    {ok, WorkerPid} = add_worker([WorkerName, MaxTaskCount]),
     init_task_list(WorkerPid, WorkerTaskList).
 
 init_task_list(_WorkerPid, []) -> ok;
@@ -61,38 +94,65 @@ init_task_list(WorkerPid, [{Spec, MFA} | WorkerTaskList]) ->
         Err -> Err
     end.
 
--spec add(Worker :: any(), Spec :: list() | tuple() | spec(), MFA :: mfa()) ->
-    ok | {error, Reason :: any()}.
-add(Worker, Spec, MFA) ->
-    add(Worker, Spec, MFA, []).
-add(Worker, Spec, MFA, Options) when is_record(Spec, spec) ->
-    add_spec(Worker, Spec, MFA, Options);
-add(Worker, Spec0, MFA, Options) ->
+-spec add(Worker :: any(), Spec :: ecrontab_parse:parse_spec(), MFA :: mfa()) ->
+    add_result().
+add(WorkerName, Spec, MFA) ->
+    add(WorkerName, Spec, MFA, []).
+-spec add(WorkerName :: any(), Spec :: ecrontab_parse:parse_spec() | spec(), MFA :: mfa(), Options :: list()) ->
+    add_result().
+add(WorkerName, Spec, MFA, Options) when is_record(Spec, spec) ->
+    add_spec(WorkerName, Spec, MFA, Options);
+add(WorkerName, Spec0, MFA, Options) ->
+    add(WorkerName, undefined, Spec0, MFA, Options).
+-spec add(Worker :: any(), Name :: any(), Spec :: ecrontab_parse:parse_spec() | spec(),
+    MFA :: mfa(), Options :: list()) -> add_result().
+add(WorkerName, Name, Spec0, MFA, Options) ->
     NowDatetime = erlang:localtime(),
     case ecrontab_parse:parse_spec(Spec0, [{filter_over_time, NowDatetime}]) of
         {ok, Spec} ->
-            do_add(Worker, Spec, MFA, NowDatetime, Options);
+            do_add(WorkerName, Name, Spec, MFA, NowDatetime, Options);
         Err ->
             Err
     end.
 
--spec add_spec(Worker :: any(), Spec :: list() | tuple() | spec(), MFA :: mfa(), Options :: list()) ->
-    ok | {error, Reason :: any()}.
-add_spec(Worker, Spec, MFA, Options) ->
-    add_spec(Worker, Spec, MFA, erlang:localtime(), Options).
-add_spec(Worker, Spec, MFA, NowDatetime, Options) when is_record(Spec, spec) ->
-    do_add(Worker, Spec, MFA, NowDatetime, Options).
+-spec add_spec(Worker :: any(), Spec :: spec(), MFA :: mfa(), Options :: list()) ->
+    add_result().
+add_spec(WorkerName, Spec, MFA, Options) ->
+    add_spec(WorkerName, Spec, MFA, erlang:localtime(), Options).
+-spec add_spec(Worker :: any(), Spec :: spec(), MFA :: mfa(), calendar:datetime(), Options :: list()) ->
+    add_result().
+add_spec(WorkerName, Spec, MFA, NowDatetime, Options) when is_record(Spec, spec) ->
+    do_add(WorkerName, undefined, Spec, MFA, NowDatetime, Options).
+-spec add_spec(Worker :: any(), Name :: any(), Spec :: spec(), MFA :: mfa(),
+    calendar:datetime(), Options :: list()) -> add_result().
+add_spec(WorkerName, Name, Spec, MFA, NowDatetime, Options) when is_record(Spec, spec) ->
+    do_add(WorkerName, Name, Spec, MFA, NowDatetime, Options).
+
+-spec del(WorkerName :: any(), Name :: any()) -> ok | {error, Reason :: any()}.
+del(WorkerPid, Name) when is_pid(WorkerPid) ->
+    ecrontab_worker:del(WorkerPid, Name);
+del(WorkerName, Name) ->
+    case ets:lookup(?ETS_WORKER_NAME_INDEX, WorkerName) of
+        [{_, WorkerPid}] ->
+            ecrontab_worker:del(WorkerPid, Name);
+        _ ->
+            {error, no_worker}
+    end.
 
 -spec worker_list() ->
-    [{Worker :: any(), Pid :: pid()}, ...].
+    [{WorkerName :: any(), Pid :: pid()}, ...].
 worker_list() ->
     ets:tab2list(?ETS_WORKER_NAME_INDEX).
 
+-spec add_worker(list() | any()) -> supervisor:startchild_ret().
 add_worker(Args) when is_list(Args) ->
     ecrontab_worker_sup:start_child(Args);
 add_worker(WorkerName) ->
     ecrontab_worker_sup:start_child([WorkerName]).
 
+-spec stop_worker(WorkerName :: any()) -> ok | {error, no_worker} | {error, atom()}.
+stop_worker(WorkerPid) when is_pid(WorkerPid) ->
+    supervisor:terminate_child(ecrontab_worker_sup, WorkerPid);
 stop_worker(WorkerName) ->
     case ets:lookup(?ETS_WORKER_NAME_INDEX, WorkerName) of
         [{_, WorkerPid}] ->
@@ -109,9 +169,9 @@ get_worker_count() ->
 %% internal API
 %% ====================================================================
 
-do_add(Worker, Spec, MFA, NowDatetime, Options) when is_list(Options) ->
+do_add(Worker, Name, Spec, MFA, NowDatetime, Options) when is_list(Options) ->
     check_mfa(MFA),
-    Task = #task{spec = Spec, mfa = MFA, add_time = NowDatetime, options = Options},
+    Task = #task{name = Name, spec = Spec, mfa = MFA, add_time = NowDatetime, options = Options},
     do_add(Worker, Task).
 
 do_add(WorkerPid, Task) when is_pid(WorkerPid) ->
@@ -220,7 +280,6 @@ loop_parse_spec(_Spec, 0) ->
 loop_parse_spec(Spec, Count) ->
     ecrontab_parse:parse_spec(Spec, []),
     loop_parse_spec(Spec, Count - 1).
-
 
 %% ====================================================================
 %% next_time performance test

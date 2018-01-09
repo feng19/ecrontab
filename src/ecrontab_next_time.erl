@@ -50,7 +50,7 @@ next_datetime(Spec, NowDatetime, _Options) ->
 
 next_time(Spec) ->
     next_time(Spec, erlang:localtime(), []).
--spec next_time(Spec :: spec(), NowDatetime :: calendar:datetime()) ->
+-spec next_time(Spec :: ecrontab:spec(), NowDatetime :: calendar:datetime()) ->
     {ok, NextTime :: non_neg_integer()
     | calendar:datetime() | non_neg_integer()}
     | {false, time_over}.
@@ -94,7 +94,6 @@ next_time_do(Spec, NowDatetime) ->
     #spec{year = Year, month = Month, day = Day, week = Week,
         hour = Hour, minute = Minute, second = Second} = Spec,
     next_time_year(Year, Month, Day, Week, Hour, Minute, Second, NowDatetime).
-
 
 %% ====================================================================
 %% next_time_year

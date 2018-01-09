@@ -4,11 +4,13 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([
     start_link/1,
-    add/2
+    add/2,
+    del/2
 ]).
 
 -record(state, {name, task_count = 0, max_task_count = 0, now_seconds}).
--record(server_task, {spec, mfa, options}).
+-record(server_task, {name, spec, mfa, options}).
+-define(DICTIONARY_KEY(Seconds), {ecrontab, Seconds}).
 
 %%%===================================================================
 %%% API
@@ -20,6 +22,15 @@ start_link(Args) ->
 add(Pid, Task) ->
     try
         gen_server:call(Pid, {add, Task})
+    catch
+        {'EXIT', Reason} ->
+            {error, Reason}
+    end.
+
+del(_Pid, undefined) -> {error, undefined_name};
+del(Pid, Name) ->
+    try
+        gen_server:cast(Pid, {del, Name})
     catch
         {'EXIT', Reason} ->
             {error, Reason}
@@ -49,6 +60,9 @@ handle_call({add, Task}, _From, State) ->
 handle_call(_Msg, _From, State) ->
     {reply, noknow, State}.
 
+handle_cast({del, Name}, State) ->
+    NewState = do_del(State, Name),
+    {noreply, NewState};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -70,7 +84,7 @@ code_change(_Old, State, _Extra) ->
 %% ====================================================================
 
 do_tick(State) ->
-    case erlang:erase(State#state.now_seconds) of
+    case erase(?DICTIONARY_KEY(State#state.now_seconds)) of
         undefined ->
             State;
         [] ->
@@ -111,14 +125,34 @@ do_add(State, Task) ->
     end.
 
 task_to_server_task(Task) ->
-    #server_task{spec = Task#task.spec, mfa = Task#task.mfa, options = Task#task.options}.
+    #server_task{name = Task#task.name, spec = Task#task.spec, mfa = Task#task.mfa, options = Task#task.options}.
 
 put_in_list(Seconds, STask) ->
     List =
-        case get(Seconds) of
+        case get(?DICTIONARY_KEY(Seconds)) of
             undefined ->
                 [STask];
             List0 ->
                 [STask | List0]
         end,
-    put(Seconds, List).
+    put(?DICTIONARY_KEY(Seconds), List).
+
+do_del(State, Name) ->
+    lists:foldl(
+        fun({?DICTIONARY_KEY(Seconds), List}, Acc) ->
+            case del_name(Name, Seconds, List) of
+                false -> Acc;
+                ok ->
+                    Acc#state{task_count = State#state.task_count - 1}
+            end;
+            (_, Acc) -> Acc
+        end, State, get()).
+
+del_name(Name, Seconds, List) ->
+    case lists:keytake(Name, #server_task.name, List) of
+        false ->
+            false;
+        {value, _, NewList} ->
+            put(?DICTIONARY_KEY(Seconds), NewList),
+            ok
+    end.

@@ -138,7 +138,6 @@ normal_test_list(NowDatetime) ->
         ], next_time_loop_do(Spec1, NowDatetime, 10))
     ].
 
-
 %%next_time_loop(Spec0,Count) ->
 %%    NowDatetime = {{2016,3,7},{22,2,39}},
 %%    next_time_loop(Spec0,NowDatetime,Count).

@@ -7,7 +7,13 @@
 
 -define(ETS_WORKER_NAME_INDEX, ets_worker_name_index). %% {name, worker_pid}
 
--record(task, {name, spec, mfa, add_time, options}).
+-record(task, {
+    name :: ecrontab:task_name(),
+    spec :: ecrontab:spec(),
+    mfa :: ecrontab:ecrontab_mfa(),
+    add_time :: calendar:datetime(),
+    options
+}).
 
 -define(TIMESTAMP, erlang:system_time(seconds)).
 -define(MILLI_TIMESTAMP, erlang:system_time(millisecond)).

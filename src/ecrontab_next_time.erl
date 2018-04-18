@@ -13,6 +13,7 @@
 %% API
 %% ====================================================================
 
+-spec next_timestamp(ecrontab:spec()) -> {ok, Timestamp :: pos_integer()} | {error, atom()}.
 next_timestamp(Spec) ->
     next_timestamp(Spec, erlang:localtime()).
 next_timestamp(Spec, NowDatetime) ->
@@ -20,11 +21,12 @@ next_timestamp(Spec, NowDatetime) ->
 next_timestamp(Spec, NowDatetime, _Options) ->
     case next_time_do(Spec, NowDatetime) of
         {ok, Datetime} ->
-            {ok, ecrontab_time_util:datetime_to_timestamp(Datetime)};
-        Err ->
-            Err
+            {ok, ?DATETIME_TO_TIMESTAMP(Datetime)};
+        Error ->
+            Error
     end.
 
+-spec next_seconds(ecrontab:spec()) -> {ok, Timestamp :: pos_integer()} | {error, atom()}.
 next_seconds(Spec) ->
     next_seconds(Spec, erlang:localtime()).
 next_seconds(Spec, NowDatetime) ->
@@ -33,8 +35,8 @@ next_seconds(Spec, NowDatetime, _Options) ->
     case next_time_do(Spec, NowDatetime) of
         {ok, Datetime} ->
             {ok, ?DATETIME_TO_TIMESTAMP(Datetime)};
-        Err ->
-            Err
+        Error ->
+            Error
     end.
 
 next_datetime(Spec) ->
@@ -50,10 +52,8 @@ next_datetime(Spec, NowDatetime, _Options) ->
 
 next_time(Spec) ->
     next_time(Spec, erlang:localtime(), []).
--spec next_time(Spec :: ecrontab:spec(), NowDatetime :: calendar:datetime()) ->
-    {ok, NextTime :: non_neg_integer()
-    | calendar:datetime() | non_neg_integer()}
-    | {false, time_over}.
+-spec next_time(ecrontab:spec(), NowDatetime :: calendar:datetime()) ->
+    {ok, NextTime :: non_neg_integer() | calendar:datetime() | non_neg_integer()} | {error, time_over}.
 next_time(Spec, NowDatetime) ->
     next_time(Spec, NowDatetime, []).
 next_time(Spec, NowDatetime, Options) ->
@@ -67,12 +67,12 @@ next_time(Spec, NowDatetime, Options) ->
                 _ ->
                     Result
             end;
-        Err ->
-            Err
+        Error ->
+            Error
     end.
 
-next_time_do(#spec{type = ?SPEC_TYPE_INTERVAL_YEAR, year = #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL, value = Interval}} = Spec,
-    NowDatetime) ->
+next_time_do(#spec{type = ?SPEC_TYPE_INTERVAL_YEAR, year = #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL,
+    value = Interval}} = Spec, NowDatetime) ->
     {{LastYear, _, _}, _} = NowDatetime,
     NextYear = LastYear + Interval,
     SpecField = #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = NextYear},
@@ -86,7 +86,7 @@ next_time_do(#spec{type = ?SPEC_TYPE_TIMESTAMP, value = Timestamp}, NowDatetime)
         Datetime > NowDatetime ->
             {ok, Datetime};
         true ->
-            {false, time_over}
+            {error, time_over}
     end;
 next_time_do(#spec{type = ?SPEC_TYPE_ONLY_ONE, value = N} = Spec, NowDatetime) ->
     next_time_only_one(N, Spec, NowDatetime);
@@ -106,11 +106,11 @@ next_time_year(#spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = Year}, Month, Da
     NowYear = ecrontab_time_util:get_datetime_year(NowDatetime),
     if
         Year < NowYear ->
-            {false, time_over};
+            {error, time_over};
         true ->
             case next_time_month(Year, Month, Day, Week, Hour, Minute, Second, NowDatetime) of
                 false ->
-                    {false, time_over};
+                    {error, time_over};
                 Result ->
                     Result
             end
@@ -140,7 +140,7 @@ next_time_year_any(NowYear, Month, Day, Week, Hour, Minute, Second, NowDatetime)
 next_time_year_list(NowYear, List, Month, Day, Week, Hour, Minute, Second, NowDatetime) ->
     case find_next_in_list(NowYear, List) of
         false ->
-            {false, time_over};
+            {error, time_over};
         NextYear ->
             case next_time_month(NextYear, Month, Day, Week, Hour, Minute, Second, NowDatetime) of
                 false ->
@@ -757,13 +757,13 @@ next_time_only_one_year(SpecField, {{NowYear, _, _}, _}) ->
                 NextYear > NowYear ->
                     {ok, {{SpecField#spec_field.value, 1, 1}, {0, 0, 0}}};
                 true ->
-                    {false, time_over}
+                    {error, time_over}
             end;
         ?SPEC_FIELD_TYPE_LIST ->
             List = SpecField#spec_field.value,
             case find_next_in_list(NowYear, List) of
                 false ->
-                    {false, time_over};
+                    {error, time_over};
                 NextYear ->
                     {ok, {{NextYear, 1, 1}, {0, 0, 0}}}
             end

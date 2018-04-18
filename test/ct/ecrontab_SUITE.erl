@@ -6,6 +6,8 @@
 all() ->
     [
         add_worker,
+        add_worker_tasks,
+        add_worker_tasks_not_auto_start,
         {group, next_sec_tasks},
         {group, add_tasks},
         del_task
@@ -14,7 +16,6 @@ all() ->
 groups() ->
     [
         {next_sec_tasks, [sequence, {repeat, 2}], [add_next_sec_task]},
-
         {add_tasks, [parallel, {repeat, 10}], [add_task]}
     ].
 
@@ -36,30 +37,16 @@ end_per_group(check_servers, Config) ->
 end_per_group(_, _Config) ->
     ok.
 
-init_per_testcase(add_task, Config) ->
-    WokerName = make_ref(),
-    {ok, Pid} = ecrontab:add_worker(WokerName),
-    [{worker, Pid} | Config];
-init_per_testcase(del_task, Config) ->
-    WokerName = make_ref(),
-    {ok, Pid} = ecrontab:add_worker(WokerName),
-    [{worker, Pid} | Config];
-init_per_testcase(add_next_sec_task, Config) ->
+init_per_testcase(TestCase, Config) when TestCase == add_task orelse
+    TestCase == del_task orelse TestCase == add_next_sec_task ->
     WokerName = make_ref(),
     {ok, Pid} = ecrontab:add_worker(WokerName),
     [{worker, Pid} | Config];
 init_per_testcase(_, Config) ->
     Config.
 
-end_per_testcase(add_task, Config) ->
-    Pid = ?config(worker, Config),
-    ok = ecrontab:stop_worker(Pid),
-    ok;
-end_per_testcase(del_task, Config) ->
-    Pid = ?config(worker, Config),
-    ok = ecrontab:stop_worker(Pid),
-    ok;
-end_per_testcase(add_next_sec_task, Config) ->
+end_per_testcase(TestCase, Config) when TestCase == add_task andalso
+    TestCase == del_task andalso TestCase == add_next_sec_task ->
     Pid = ?config(worker, Config),
     ok = ecrontab:stop_worker(Pid),
     ok;
@@ -77,6 +64,65 @@ add_worker(_Config) ->
     ok = ecrontab:stop_worker(?MODULE),
     {error, no_worker} = ecrontab:stop_worker(?MODULE),
     false = erlang:is_process_alive(Pid),
+    ok.
+
+add_worker_tasks(_) ->
+    Ref = make_ref(),
+    Self = self(),
+
+    T1Fun = fun() -> Self ! {t1, Ref} end,
+    {{Y1, M1, D1}, {HH1, MM1, SS1}} = erlang:localtime(),
+    Spec1 = {Y1, M1, D1, '*', HH1, MM1, SS1},
+
+    T2Fun = fun() -> Self ! {t2, Ref} end,
+    {{Y2, M2, D2}, {HH2, MM2, SS2}} = ecrontab_time_util:next_second(ecrontab_time_util:next_second(erlang:localtime())),
+    Spec2 = {Y2, M2, D2, '*', HH2, MM2, SS2},
+
+    T3Fun = fun() -> Self ! {t3, Ref} end,
+    Spec3 = {'*', '*', '*', '*', '*', '*', '*'},
+    WorkerTasks = [
+        {Spec1, T1Fun},
+        {Spec2, T2Fun},
+        {Spec3, T3Fun}
+    ],
+    {ok, _Pid} = ecrontab:add_worker(#{worker_name => ?FUNCTION_NAME, tasks => WorkerTasks}),
+    receive
+        {t1, Ref} ->
+            error(test_error, ?FUNCTION_NAME)
+    after 1000 -> ok
+    end,
+    receive
+        {t2, Ref} -> ok
+    after 2000 ->
+        error(test_error, ?FUNCTION_NAME)
+    end,
+    receive
+        {t3, Ref} -> ok
+    after 1000 ->
+        error(test_error, ?FUNCTION_NAME)
+    end,
+    ecrontab:stop_worker(?FUNCTION_NAME),
+    ok.
+
+add_worker_tasks_not_auto_start(_) ->
+    Ref = make_ref(),
+    Self = self(),
+    Fun = fun() -> Self ! {t1, Ref} end,
+    WorkerTasks = [
+        {{'*', '*', '*', '*', '*', '*', '*'}, Fun}
+    ],
+    ecrontab:add_worker(#{worker_name => ?FUNCTION_NAME, is_auto_start => false, tasks => WorkerTasks}),
+    receive
+        {t1, Ref} ->
+            error(test_error, ?FUNCTION_NAME)
+    after 1000 -> ok
+    end,
+    ecrontab:start_worker_tasks(?FUNCTION_NAME),
+    receive
+        {t1, Ref} -> ok
+    after 1000 ->
+        error(test_error, ?FUNCTION_NAME)
+    end,
     ok.
 
 add_task(Config) ->

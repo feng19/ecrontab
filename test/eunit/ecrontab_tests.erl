@@ -1,4 +1,4 @@
--module(ecrontab_test).
+-module(ecrontab_tests).
 -include_lib("eunit/include/eunit.hrl").
 
 all_test_() ->

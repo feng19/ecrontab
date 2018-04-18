@@ -4,16 +4,17 @@
 -export([
     start/0,
     stop/0,
-    init_workers/1,
-    init_worker/1,
-    init_task_list/2,
     add/3, add/4, add/5,
     add_spec/4, add_spec/5, add_spec/6,
     del/2,
     worker_list/0,
+    add_workers/1,
     add_worker/1,
     stop_worker/1,
-    get_worker_count/0
+    start_worker_tasks/1,
+    get_worker_count/0,
+    parse_tasks/1,
+    parse_task/1
 ]).
 
 %% for test
@@ -25,7 +26,13 @@
     loop_next_time_do/3
 ]).
 
--export_type([spec_type/0, spec_field_type/0, spec_field_value/0, spec_field/0, spec/0]).
+-export_type([
+    spec_type/0, spec_field_type/0, spec_field_value/0, spec_field/0, spec/0,
+    ecrontab_mfa/0, add_result/0, worker_name/0,
+    worker_setting/0, worker_settings/0,
+    worker_tasks/0, worker_task/0,
+    task/0, task_name/0
+]).
 
 -type spec_type() ::
     ?SPEC_TYPE_NORMAL |
@@ -55,7 +62,32 @@
 
 -type spec() :: #spec{}.
 
+-type ecrontab_mfa() :: function() | mfa() | {node(), module(), atom(), list()}.
 -type add_result() :: ok | {error, Reason :: any()}.
+-type worker_name() :: any().
+
+-type worker_settings() :: [worker_setting()].
+-type worker_setting() ::
+    {worker_name()} |
+    {worker_name(), max_task_count()} |
+    {worker_name(), max_task_count(), worker_tasks()} |
+    {worker_name(), is_worker_auto_start()} |
+    {worker_name(), is_worker_auto_start(), worker_tasks()} |
+    {worker_name(), max_task_count(), is_worker_auto_start(), worker_tasks()}|
+#{worker_name := worker_name(), max_task_count => max_task_count(),
+is_worker_auto_start => is_worker_auto_start(), worker_tasks => worker_tasks()}.
+
+-type max_task_count() :: pos_integer().
+-type is_worker_auto_start() :: boolean().
+-type worker_tasks() :: [worker_task()].
+-type worker_task() :: task() |
+    {spec() | ecrontab_parse:parse_spec(), ecrontab_mfa()} |
+    {task_name(), spec() | ecrontab_parse:parse_spec(), ecrontab_mfa()} |
+    {task_name(), spec() | ecrontab_parse:parse_spec(), ecrontab_mfa(), task_options()}.
+
+-type task() :: #task{}.
+-type task_name() :: undefined | any().
+-type task_options() :: proplists:proplist().
 
 %% ====================================================================
 %% app
@@ -71,86 +103,76 @@ stop() ->
 %% API
 %% ====================================================================
 
-init_workers([]) -> ok;
-init_workers([WorkerSettings | Workers]) ->
-    case init_worker(WorkerSettings) of
-        ok ->
-            init_workers(Workers);
-        Err -> Err
-    end.
-
-init_worker({WorkerName, WorkerTaskList}) ->
-    {ok, WorkerPid} = add_worker(WorkerName),
-    init_task_list(WorkerPid, WorkerTaskList);
-init_worker({WorkerName, MaxTaskCount, WorkerTaskList}) ->
-    {ok, WorkerPid} = add_worker([WorkerName, MaxTaskCount]),
-    init_task_list(WorkerPid, WorkerTaskList).
-
-init_task_list(_WorkerPid, []) -> ok;
-init_task_list(WorkerPid, [{Spec, MFA} | WorkerTaskList]) ->
-    case add(WorkerPid, Spec, MFA) of
-        ok ->
-            init_task_list(WorkerPid, WorkerTaskList);
-        Err -> Err
-    end.
-
--spec add(Worker :: any(), Spec :: ecrontab_parse:parse_spec(), MFA :: mfa()) ->
+-spec add(worker_name(), ecrontab_parse:parse_spec() | spec(), ecrontab_mfa()) ->
     add_result().
 add(WorkerName, Spec, MFA) ->
     add(WorkerName, Spec, MFA, []).
--spec add(WorkerName :: any(), Spec :: ecrontab_parse:parse_spec() | spec(), MFA :: mfa(), Options :: list()) ->
+-spec add(worker_name(), Spec :: ecrontab_parse:parse_spec() | spec(), ecrontab_mfa(), task_options()) ->
     add_result().
 add(WorkerName, Spec, MFA, Options) when is_record(Spec, spec) ->
     add_spec(WorkerName, Spec, MFA, Options);
-add(WorkerName, Spec0, MFA, Options) ->
-    add(WorkerName, undefined, Spec0, MFA, Options).
--spec add(Worker :: any(), Name :: any(), Spec :: ecrontab_parse:parse_spec() | spec(),
-    MFA :: mfa(), Options :: list()) -> add_result().
+add(WorkerName, ParseSpec, MFA, Options) ->
+    add(WorkerName, undefined, ParseSpec, MFA, Options).
+-spec add(worker_name(), task_name(), ecrontab_parse:parse_spec() | spec(),
+    ecrontab_mfa(), task_options()) -> add_result().
 add(WorkerName, Name, Spec0, MFA, Options) ->
     NowDatetime = erlang:localtime(),
     case ecrontab_parse:parse_spec(Spec0, [{filter_over_time, NowDatetime}]) of
         {ok, Spec} ->
             do_add(WorkerName, Name, Spec, MFA, NowDatetime, Options);
-        Err ->
-            Err
+        Error ->
+            Error
     end.
 
--spec add_spec(Worker :: any(), Spec :: spec(), MFA :: mfa(), Options :: list()) ->
+-spec add_spec(worker_name(), spec(), ecrontab_mfa(), task_options()) ->
     add_result().
 add_spec(WorkerName, Spec, MFA, Options) ->
     add_spec(WorkerName, Spec, MFA, erlang:localtime(), Options).
--spec add_spec(Worker :: any(), Spec :: spec(), MFA :: mfa(), calendar:datetime(), Options :: list()) ->
+-spec add_spec(worker_name(), spec(), ecrontab_mfa(), calendar:datetime(), task_options()) ->
     add_result().
 add_spec(WorkerName, Spec, MFA, NowDatetime, Options) when is_record(Spec, spec) ->
     do_add(WorkerName, undefined, Spec, MFA, NowDatetime, Options).
--spec add_spec(Worker :: any(), Name :: any(), Spec :: spec(), MFA :: mfa(),
-    calendar:datetime(), Options :: list()) -> add_result().
+-spec add_spec(worker_name(), task_name(), spec(), ecrontab_mfa(),
+    calendar:datetime(), task_options()) -> add_result().
 add_spec(WorkerName, Name, Spec, MFA, NowDatetime, Options) when is_record(Spec, spec) ->
     do_add(WorkerName, Name, Spec, MFA, NowDatetime, Options).
 
--spec del(WorkerName :: any(), Name :: any()) -> ok | {error, Reason :: any()}.
+-spec del(worker_name(), task_name()) -> ok | {error, Reason :: any()}.
 del(WorkerPid, Name) when is_pid(WorkerPid) ->
     ecrontab_worker:del(WorkerPid, Name);
-del(WorkerName, Name) ->
+del(WorkerName, TaskName) ->
     case ets:lookup(?ETS_WORKER_NAME_INDEX, WorkerName) of
         [{_, WorkerPid}] ->
-            ecrontab_worker:del(WorkerPid, Name);
+            ecrontab_worker:del(WorkerPid, TaskName);
         _ ->
             {error, no_worker}
     end.
 
 -spec worker_list() ->
-    [{WorkerName :: any(), Pid :: pid()}, ...].
+    [{worker_name(), Pid :: pid()}, ...].
 worker_list() ->
     ets:tab2list(?ETS_WORKER_NAME_INDEX).
 
--spec add_worker(list() | any()) -> supervisor:startchild_ret().
+-spec add_workers(worker_settings()) -> ok.
+add_workers([]) -> ok;
+add_workers([WorkerSettings | Workers]) ->
+    case add_worker(WorkerSettings) of
+        {ok, _} ->
+            add_workers(Workers);
+        Error -> Error
+    end.
+
+-spec add_worker(worker_name() | worker_setting()) -> supervisor:startchild_ret().
 add_worker(Args) when is_list(Args) ->
     ecrontab_worker_sup:start_child(Args);
+add_worker(WorkerSetting) when is_tuple(WorkerSetting) ->
+    ecrontab_worker_sup:start_child(WorkerSetting);
+add_worker(WorkerSetting) when is_map(WorkerSetting) ->
+    ecrontab_worker_sup:start_child(WorkerSetting);
 add_worker(WorkerName) ->
-    ecrontab_worker_sup:start_child([WorkerName]).
+    ecrontab_worker_sup:start_child({WorkerName}).
 
--spec stop_worker(WorkerName :: any()) -> ok | {error, no_worker} | {error, atom()}.
+-spec stop_worker(worker_name()) -> ok | {error, no_worker} | {error, atom()}.
 stop_worker(WorkerPid) when is_pid(WorkerPid) ->
     supervisor:terminate_child(ecrontab_worker_sup, WorkerPid);
 stop_worker(WorkerName) ->
@@ -161,9 +183,44 @@ stop_worker(WorkerName) ->
             {error, no_worker}
     end.
 
+-spec start_worker_tasks(worker_name()) -> ok | {error, no_worker}.
+start_worker_tasks(WorkerName) ->
+    case ets:lookup(?ETS_WORKER_NAME_INDEX, WorkerName) of
+        [{_, WorkerPid}] ->
+            ecrontab_worker:start_tasks(WorkerPid);
+        _ ->
+            {error, no_worker}
+    end.
+
 -spec get_worker_count() -> Count :: integer().
 get_worker_count() ->
     proplists:get_value(workers, supervisor:count_children(ecrontab_worker_sup)).
+
+-spec parse_tasks(worker_tasks()) -> {ok, [#task{}]} | {error, any()}.
+parse_tasks(WorkerTasks) ->
+    parse_tasks(WorkerTasks, []).
+parse_tasks([], WorkerTasks) -> {ok, WorkerTasks};
+parse_tasks([WorkerTask | WorkerTasks], Acc) ->
+    case parse_task(WorkerTask) of
+        {ok, Task} ->
+            parse_tasks(WorkerTasks, [Task | Acc]);
+        {error, Reason} ->
+            {error, {WorkerTask, Reason}}
+    end.
+
+-spec parse_task(worker_task()) -> {ok, #task{}} | {error, any()}.
+parse_task({Spec0, MFA}) ->
+    parse_task({undefined, Spec0, MFA});
+parse_task({Name, Spec0, MFA}) ->
+    parse_task({Name, Spec0, MFA, []});
+parse_task({Name, Spec0, MFA, Options}) ->
+    check_mfa(MFA),
+    NowDatetime = erlang:localtime(),
+    case parse_task_parse_spec(Spec0, NowDatetime) of
+        {ok, Spec} ->
+            {ok, #task{name = Name, spec = Spec, mfa = MFA, add_time = NowDatetime, options = Options}};
+        Error -> Error
+    end.
 
 %% ====================================================================
 %% internal API
@@ -184,6 +241,7 @@ do_add(WorkerName, Task) ->
             {error, no_worker}
     end.
 
+-spec check_mfa(ecrontab_mfa()) -> true.
 check_mfa(Fun) when is_function(Fun, 0) ->
     true;
 check_mfa({M, F, A} = MFA) when is_atom(M) andalso is_atom(F) andalso is_list(A) ->
@@ -195,13 +253,17 @@ check_mfa({M, F, A} = MFA) when is_atom(M) andalso is_atom(F) andalso is_list(A)
                 false ->
                     exit({error_mfa, MFA})
             end;
-        Err ->
-            exit({module_not_loaded, M, Err})
+        Error ->
+            exit({module_not_loaded, M, Error})
     end;
 check_mfa({_Node, M, F, A}) when is_atom(M) andalso is_atom(F) andalso is_list(A) ->
     true;
 check_mfa(MFA) ->
     exit({error_mfa, MFA}).
+
+parse_task_parse_spec(Spec, _NowDatetime) when is_record(Spec, spec) -> Spec;
+parse_task_parse_spec(Spec0, NowDatetime) ->
+    ecrontab_parse:parse_spec(Spec0, [{filter_over_time, NowDatetime}]).
 
 %% ====================================================================
 %% app performance test
@@ -319,6 +381,6 @@ loop_next_time_do(Spec, NowDatetime, N) ->
     case ecrontab_next_time:next_time(Spec, NowDatetime) of
         {ok, Datetime} ->
             loop_next_time_do(Spec, Datetime, N - 1);
-        Err ->
-            Err
+        Error ->
+            Error
     end.

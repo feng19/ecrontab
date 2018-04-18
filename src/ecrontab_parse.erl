@@ -23,6 +23,7 @@
 %% ====================================================================
 %% parse_spec
 %% ====================================================================
+-spec parse_spec(parse_spec()) -> {ok, ecrontab:spec()} | {error, any()}.
 parse_spec(Spec) ->
     parse_spec(Spec, ?DEFAULT_OPTIONS).
 parse_spec([Month, Day, Week, Hour, Minute], Options) ->
@@ -55,8 +56,8 @@ parse_spec(Year, Month, Day, Week, Hour, Minute, Second, Options) ->
                 NowDatetime ->
                     filter_over_time(Spec, NowDatetime)
             end;
-        Err ->
-            Err
+        Error ->
+            Error
     end.
 
 validate_spec(Spec) ->
@@ -112,8 +113,8 @@ parse_spec_field_other(Value0, Type) ->
     case validate_value(Type, Value0) of
         {ok, Value} ->
             {ok, #spec_field{type = ?SPEC_FIELD_TYPE_NUM, value = Value}};
-        Err ->
-            Err
+        Error ->
+            Error
     end.
 
 %% ====================================================================
@@ -134,8 +135,8 @@ parse_list([H | T], Type, Acc) ->
             parse_list(T, Type, [Value | Acc]);
         {ok, #spec_field{type = ?SPEC_FIELD_TYPE_LIST, value = Value}} ->
             parse_list(T, Type, Value ++ Acc);
-        Err ->
-            Err
+        Error ->
+            Error
     end;
 parse_list([], _Type, Acc) ->
     List = ordsets:from_list(Acc),
@@ -164,8 +165,8 @@ parse_interval(Bin, Type) ->
             case check_interval_bin(IntervalBin) of
                 {ok, Interval} ->
                     parse_interval_do(Type, RangeBin, Interval);
-                Err ->
-                    Err
+                Error ->
+                    Error
             end;
         [RangeBin] ->
             parse_interval_do(Type, RangeBin, 1)
@@ -211,14 +212,14 @@ parse_interval_do(Type, First0, Last0, Step) ->
                     case get_list_by_range(Type, First, Last, Step) of
                         {ok, List} ->
                             list_single(lists:usort(List));
-                        Err ->
-                            Err
+                        Error ->
+                            Error
                     end;
-                Err ->
-                    Err
+                Error ->
+                    Error
             end;
-        Err ->
-            Err
+        Error ->
+            Error
     end.
 
 parse_interval_one(Type) ->
@@ -234,8 +235,8 @@ parse_interval_any(?POS_YEAR, IntervalBin) ->
     case check_interval_bin(IntervalBin) of
         {ok, Interval} ->
             {ok, #spec_field{type = ?SPEC_FIELD_TYPE_INTERVAL, value = Interval}};
-        Err ->
-            Err
+        Error ->
+            Error
     end;
 parse_interval_any(Type, IntervalBin) ->
     case check_interval_bin(IntervalBin) of
@@ -243,8 +244,8 @@ parse_interval_any(Type, IntervalBin) ->
             {ok, {Min, Max}} = ecrontab_time_util:get_type_range(Type),
             List = get_list_by_range(Min, Max, Interval),
             list_single(lists:usort(List));
-        Err ->
-            Err
+        Error ->
+            Error
     end.
 
 check_interval_bin(<<>>) ->
@@ -275,8 +276,8 @@ get_list_by_range(Type, First, Last, Step) ->
     case ecrontab_time_util:get_type_range(Type) of
         {ok, {Min, Max}} ->
             {ok, get_list_by_range_do(Min, Max, First, Last, Step)};
-        Err ->
-            Err
+        Error ->
+            Error
     end.
 get_list_by_range_do(Min, Max, First, Last, Step) ->
     NextFirst = First + Step,

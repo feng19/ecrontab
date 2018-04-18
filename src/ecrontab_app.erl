@@ -31,4 +31,4 @@ stop(_State) ->
 
 start_more(AllConfig) ->
     Workers = proplists:get_value(workers, AllConfig, []),
-    ecrontab:init_workers(Workers).
+    ecrontab:add_workers(Workers).

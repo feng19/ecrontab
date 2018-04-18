@@ -1,4 +1,4 @@
--module(ecrontab_parse_test).
+-module(ecrontab_parse_tests).
 -include_lib("eunit/include/eunit.hrl").
 -include("ecrontab_parse.hrl").
 -include("ecrontab.hrl").

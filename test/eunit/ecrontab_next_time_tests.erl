@@ -1,4 +1,4 @@
--module(ecrontab_next_time_test).
+-module(ecrontab_next_time_tests).
 -include("ecrontab.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
@@ -118,10 +118,10 @@ timestamp_test_list(NowDatetime) ->
     {ok, Spec} = ecrontab_parse:parse_spec({2016, 2, 1, '*', 0, 0, 0}, []),
     {ok, SpecOK} = ecrontab_parse:parse_spec({2016, 3, 7, '*', 22, 2, 40}, []),
     [
-        ?_assertEqual({false, time_over}, ecrontab_next_time:next_time(Spec, NowDatetime)),
+        ?_assertEqual({error, time_over}, ecrontab_next_time:next_time(Spec, NowDatetime)),
         ?_assertEqual({ok, ?DATETIME_TO_TIMESTAMP({{2016, 3, 7}, {22, 2, 40}})},
             ecrontab_next_time:next_time(SpecOK, NowDatetime, [{return, timestamp}])),
-        ?_assertEqual([{{2016, 3, 7}, {22, 2, 40}}, {false, time_over}], next_time_loop_do(SpecOK, NowDatetime, 10))
+        ?_assertEqual([{{2016, 3, 7}, {22, 2, 40}}, {error, time_over}], next_time_loop_do(SpecOK, NowDatetime, 10))
     ].
 
 normal_test_list(NowDatetime) ->
@@ -152,6 +152,6 @@ next_time_loop_do(Spec, NowDatetime, N) ->
     case ecrontab_next_time:next_time(Spec, NowDatetime) of
         {ok, Datetime} ->
             [Datetime | next_time_loop_do(Spec, Datetime, N - 1)];
-        Err ->
-            [Err]
+        Error ->
+            [Error]
     end.

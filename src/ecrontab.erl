@@ -35,17 +35,17 @@
 ]).
 
 -type spec_type() ::
-    ?SPEC_TYPE_NORMAL |
-    ?SPEC_TYPE_TIMESTAMP |
-    ?SPEC_TYPE_EVERY_SECOND |
-    ?SPEC_TYPE_INTERVAL_YEAR |
-    ?SPEC_TYPE_ONLY_ONE.
+    ?SPEC_TYPE_NORMAL
+    | ?SPEC_TYPE_TIMESTAMP
+    | ?SPEC_TYPE_EVERY_SECOND
+    | ?SPEC_TYPE_INTERVAL_YEAR
+    | ?SPEC_TYPE_ONLY_ONE.
 
 -type spec_field_type() ::
-    ?SPEC_FIELD_TYPE_ANY |
-    ?SPEC_FIELD_TYPE_NUM |
-    ?SPEC_FIELD_TYPE_LIST |
-    ?SPEC_FIELD_TYPE_INTERVAL.
+    ?SPEC_FIELD_TYPE_ANY
+    | ?SPEC_FIELD_TYPE_NUM
+    | ?SPEC_FIELD_TYPE_LIST
+    | ?SPEC_FIELD_TYPE_INTERVAL.
 
 -type spec_field_any() :: ?SPEC_FIELD_ANY.
 -type spec_field_num() :: non_neg_integer().
@@ -73,14 +73,17 @@
     {worker_name(), max_task_count(), worker_tasks()} |
     {worker_name(), is_worker_auto_start()} |
     {worker_name(), is_worker_auto_start(), worker_tasks()} |
-    {worker_name(), max_task_count(), is_worker_auto_start(), worker_tasks()}|
-#{worker_name := worker_name(), max_task_count => max_task_count(),
-is_worker_auto_start => is_worker_auto_start(), worker_tasks => worker_tasks()}.
+    {worker_name(), max_task_count(), is_worker_auto_start(), worker_tasks()} |
+    #{
+        worker_name := worker_name(), max_task_count => max_task_count(),
+        is_worker_auto_start => is_worker_auto_start(), worker_tasks => worker_tasks()
+    }.
 
 -type max_task_count() :: pos_integer().
 -type is_worker_auto_start() :: boolean().
 -type worker_tasks() :: [worker_task()].
--type worker_task() :: task() |
+-type worker_task() ::
+    task() |
     {spec() | ecrontab_parse:parse_spec(), ecrontab_mfa()} |
     {task_name(), spec() | ecrontab_parse:parse_spec(), ecrontab_mfa()} |
     {task_name(), spec() | ecrontab_parse:parse_spec(), ecrontab_mfa(), task_options()}.
